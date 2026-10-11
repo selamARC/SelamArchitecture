@@ -1,0 +1,5 @@
+# Selam Consulting Backend
+
+node_modules/
+.env
+*.log
