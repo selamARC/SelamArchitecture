@@ -1,5 +1,5 @@
 // In development the Vite dev-server proxies /api/* → http://localhost:5000
-// In production point this to your deployed API URL.
+// In production set VITE_API_BASE to your deployed backend URL (e.g. https://selamarchitecture.onrender.com)
 export const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 /**

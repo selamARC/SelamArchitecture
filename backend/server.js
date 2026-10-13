@@ -41,7 +41,8 @@ const PORT = process.env.PORT || 5000;
 // ─── CORS ────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
   .split(',')
-  .map(o => o.trim());
+  .map(o => o.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
@@ -58,6 +59,8 @@ app.use(
       ) {
         return callback(null, true);
       }
+      // Allow all Vercel preview/production deployments
+      if (origin.endsWith('.vercel.app')) return callback(null, true);
       callback(new Error(`CORS policy: origin '${origin}' is not allowed.`));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -65,6 +68,14 @@ app.use(
     credentials: true,
   })
 );
+
+// Handle CORS errors — return proper JSON so the frontend never crashes parsing an empty response
+app.use((err, req, res, next) => {
+  if (err && err.message && err.message.startsWith('CORS policy')) {
+    return res.status(403).json({ error: err.message });
+  }
+  next(err);
+});
 
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '25mb' }));
