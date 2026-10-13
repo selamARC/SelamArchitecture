@@ -11,6 +11,9 @@ export function toDirectImageUrl(url) {
   if (match && match[1]) {
     return `https://drive.google.com/uc?export=view&id=${match[1]}`;
   }
+  if (String(url).startsWith('assets/')) {
+    return `/${url}`;
+  }
   return url;
 }
 

@@ -13,6 +13,8 @@ const teamMemberSchema = new mongoose.Schema(
     yearsexperience: { type: String, default: '', trim: true },
     photo:           { type: String, default: '', trim: true }, // URL or Google Drive share link
     order:           { type: Number, default: 0 },             // display sort order within department
+    email:           { type: String, default: '', lowercase: true, trim: true },
+    user:            { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   {
     timestamps: true,

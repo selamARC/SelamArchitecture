@@ -31,7 +31,7 @@ export default function Contact() {
       if (res.ok && data.result === 'success') {
         setStatus({
           state: 'success',
-          message: 'Thank you! Your message has been sent to Selam Consulting.'
+          message: 'Thank you! Your project inquiry has been received. Our senior engineering team will review your requirements and get in touch within 24 hours.'
         });
         setFormData({ name: '', email: '', phone: '', service: '', message: '' });
       } else {
@@ -40,7 +40,7 @@ export default function Contact() {
     } catch (err) {
       setStatus({
         state: 'error',
-        message: "Couldn't send right now — please call or email us directly."
+        message: "We couldn't submit your inquiry online right now. Please call our team directly at +251 91 606 7138 or email selamconsultantplc12@gmail.com."
       });
     }
   };

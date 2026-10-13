@@ -11,6 +11,7 @@ import Projects from './pages/Projects';
 import Team from './pages/Team';
 import Contact from './pages/Contact';
 import Admin from './pages/Admin';
+import SuperAdmin from './pages/SuperAdmin';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -23,12 +24,12 @@ function ScrollToTop() {
 
 export default function App() {
   const location = useLocation();
-  const isAdmin = location.pathname.startsWith('/admin');
+  const isDashboard = location.pathname.startsWith('/admin') || location.pathname.startsWith('/super-admin');
 
   return (
     <>
       <ScrollToTop />
-      {!isAdmin && <Navbar />}
+      {!isDashboard && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -45,10 +46,12 @@ export default function App() {
         <Route path="/contact.html" element={<Contact />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin.html" element={<Admin />} />
+        <Route path="/super-admin" element={<SuperAdmin />} />
+        <Route path="/super-admin.html" element={<SuperAdmin />} />
       </Routes>
 
-      {!isAdmin && <Footer />}
-      {!isAdmin && <Chatbot />}
+      {!isDashboard && <Footer />}
+      {!isDashboard && <Chatbot />}
     </>
   );
 }

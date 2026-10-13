@@ -6,37 +6,37 @@ const defaultProjects = [
   {
     title: "B+G+5 Mixed Used",
     location: "Ethiopia, Hawassa",
-    img: "assets/front/foq.jpg"
+    img: "/assets/front/foq.jpg"
   },
   {
     title: "B+G+6+T Commercial",
     location: "Hawassa, Ethiopia",
-    img: "assets/front/g6.jpg"
+    img: "/assets/front/g6.jpg"
   },
   {
     title: "B+G+10 Commercial",
     location: "Hawassa, Ethiopia",
-    img: "assets/front/hawasa-g10.jpg"
+    img: "/assets/front/hawasa-g10.jpg"
   },
   {
     title: "B+G+M+8 Magelas Hotel & Resort",
     location: "Ethiopia, Hawassa",
-    img: "assets/front/megalis.jpg"
+    img: "/assets/front/megalis.jpg"
   },
   {
     title: "G+2 Residence Building",
     location: "Ethiopia, Hawassa",
-    img: "assets/front/menoria.jpg"
+    img: "/assets/front/menoria.jpg"
   },
   {
     title: "B+G+6 Hotel",
     location: "Ethiopia, Hawassa",
-    img: "assets/front/ngd.jpg"
+    img: "/assets/front/ngd.jpg"
   },
   {
     title: "Ultimate Motors - G+6 Office Building",
     location: "Ethiopia, Hawassa",
-    img: "assets/front/ultimate.jpg"
+    img: "/assets/front/ultimate.jpg"
   }
 ];
 
@@ -148,7 +148,7 @@ export default function Home() {
                 alt="Architectural Render"
                 className="render-img"
                 style={{ opacity: imgOpacity, transition: 'opacity 0.2s ease' }}
-                onError={(e) => { e.currentTarget.src = 'assets/front/foq.jpg'; }}
+                onError={(e) => { e.currentTarget.src = '/assets/front/foq.jpg'; }}
               />
 
               <div className="render-overlay"></div>
@@ -180,7 +180,7 @@ export default function Home() {
               </div>
 
               {/* Click To Light Up Prompt */}
-              <div className="render-click-hint">Click to &amp; switch project</div>
+              <div className="render-click-hint">Click to switch project</div>
             </div>
           </div>
 

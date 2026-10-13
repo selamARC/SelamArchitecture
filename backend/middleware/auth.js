@@ -24,4 +24,15 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth, JWT_SECRET };
+/**
+ * Middleware to verify that the authenticated user is a Super Admin (Owner).
+ */
+function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Access denied. Super Admin (Owner) privileges required.' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireSuperAdmin, JWT_SECRET };
+
