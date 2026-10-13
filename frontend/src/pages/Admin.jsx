@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE, toDirectImageUrl, getInitials } from '../utils/api';
+import AdminThemeToggle from '../components/AdminThemeToggle';
 import '../admin.css';
 
 const STORAGE_KEY = 'selam_admin_token';
@@ -9,6 +10,16 @@ const USER_KEY    = 'selam_admin_user';
 export default function Admin() {
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY));
   const [user,  setUser]  = useState(() => { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } });
+  const [theme, setTheme] = useState(() => localStorage.getItem('selam_admin_theme') || 'light');
+
+  useEffect(() => {
+    localStorage.setItem('selam_admin_theme', theme);
+    document.documentElement.setAttribute('data-admin-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   /* ── Login ─────────────────────────────────────────────── */
   const [loginId, setLoginId]   = useState('');
@@ -203,7 +214,10 @@ export default function Admin() {
   // ══════════════════════════════════════════════════════════
   if (!token) {
     return (
-      <div className="login-screen">
+      <div className="login-screen" data-theme={theme}>
+        <div className="login-top-bar">
+          <AdminThemeToggle theme={theme} toggleTheme={toggleTheme} />
+        </div>
         {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
         <div className="login-card">
@@ -273,7 +287,7 @@ export default function Admin() {
   const tabLabel = { overview: 'Overview', submissions: 'Contact Inquiries', projects: 'Projects Portfolio', jobs: 'Career Openings' };
 
   return (
-    <div className="admin-layout">
+    <div className="admin-layout" data-theme={theme}>
       {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
       {/* ── SIDEBAR ──────────────────────────────────────── */}
@@ -335,6 +349,7 @@ export default function Admin() {
           <span className="topbar-title">{tabLabel[tab]}</span>
           <div className="topbar-right">
             <span className="status-dot"><span className="dot" />Connected</span>
+            <AdminThemeToggle theme={theme} toggleTheme={toggleTheme} />
             <button className="btn-secondary" onClick={loadData} disabled={refreshing}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                 style={{ transition: 'transform .6s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
