@@ -4,7 +4,7 @@ import { API_BASE, getInitials, toDirectImageUrl } from '../utils/api';
 import '../admin.css';
 
 const STORAGE_KEY = 'selam_admin_token';
-const USER_KEY = 'selam_admin_user';
+const USER_KEY    = 'selam_admin_user';
 
 const DEPARTMENTS = [
   'Architecture',
@@ -13,1116 +13,512 @@ const DEPARTMENTS = [
   'Sanitary & Geotechnical',
   'Contract Administration & CAD',
   'Administration & Management',
-  'Executive Office',
 ];
 
-const INITIAL_MEMBER_FORM = {
-  name: '',
-  position: '',
-  department: 'Architecture',
-  profession: '',
-  yearsexperience: '',
-  photo: '',
-  order: 0,
-  email: '',
-  password: '',
+const BLANK_MEMBER = {
+  name: '', position: '', department: 'Architecture',
+  profession: '', yearsexperience: '', photo: '', order: 0,
+  email: '', password: '',
 };
 
 export default function SuperAdmin() {
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY));
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(USER_KEY));
-    } catch {
-      return null;
-    }
-  });
+  const [user,  setUser]  = useState(() => { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } });
 
-  // Tab navigation: 'team' | 'accounts'
-  const [activeTab, setActiveTab] = useState('team');
+  /* ── Login ──────────────────────────────────────────────── */
+  const [loginId, setLoginId]   = useState('admin@selam.com');
+  const [loginPw, setLoginPw]   = useState('admin123');
+  const [showPw,  setShowPw]    = useState(false);
+  const [logging, setLogging]   = useState(false);
+  const [loginErr, setLoginErr] = useState('');
 
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('admin@selam.com');
-  const [loginPassword, setLoginPassword] = useState('admin123');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  /* ── Tabs ───────────────────────────────────────────────── */
+  const [tab, setTab] = useState('team');
 
-  // Team Members data state
-  const [team, setTeam] = useState([]);
-  const [loadingTeam, setLoadingTeam] = useState(false);
-  const [teamSearch, setTeamSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('all');
+  /* ── Team Members ───────────────────────────────────────── */
+  const [team,        setTeam]        = useState([]);
+  const [teamSearch,  setTeamSearch]  = useState('');
+  const [deptFilter,  setDeptFilter]  = useState('all');
+  const [teamModal,   setTeamModal]   = useState(null); // null | 'add' | 'edit'
+  const [memberForm,  setMemberForm]  = useState(BLANK_MEMBER);
+  const [showMemberPw, setShowMemberPw] = useState(false);
+  const [editId,      setEditId]      = useState(null);
 
-  // Team Member Modals
-  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-  const [teamFormData, setTeamFormData] = useState(INITIAL_MEMBER_FORM);
-  const [showMemberPassword, setShowMemberPassword] = useState(false);
-  const [editingMember, setEditingMember] = useState(null);
-  const [formSubmitting, setFormSubmitting] = useState(false);
+  /* ── Admin Accounts ─────────────────────────────────────── */
+  const [accounts,      setAccounts]      = useState([]);
+  const [acctSearch,    setAcctSearch]    = useState('');
+  const [acctModal,     setAcctModal]     = useState(false);
+  const [acctForm,      setAcctForm]      = useState({ username: '', email: '', password: '', role: 'admin' });
 
-  // Standalone Admin Accounts state
-  const [adminUsers, setAdminUsers] = useState([]);
-  const [accountSearch, setAccountSearch] = useState('');
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [newAccountUsername, setNewAccountUsername] = useState('');
-  const [newAccountEmail, setNewAccountEmail] = useState('');
-  const [newAccountPassword, setNewAccountPassword] = useState('');
-  const [newAccountRole, setNewAccountRole] = useState('admin');
+  /* ── Stats / Shared ─────────────────────────────────────── */
+  const [stats,       setStats]       = useState({ counts: {} });
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [confirm,     setConfirm]     = useState(null);
+  const [toast,       setToast]       = useState(null);
 
-  // Statistics
-  const [stats, setStats] = useState({ counts: {} });
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Confirmation dialog & Toast
-  const [confirmDialog, setConfirmDialog] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
+  const showToast = (msg, type = 'success') => {
+    setToast({ message: msg, type });
     setTimeout(() => setToast(null), 3800);
   };
 
-  const authHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-  });
+  const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` });
+  const safeJson = async (res) => { try { return await res.json(); } catch { return {}; } };
 
-  // Load team, users, and stats
+  // ── Load all data ─────────────────────────────────────────
   const loadData = () => {
     if (!token) return;
-    setIsRefreshing(true);
-    setLoadingTeam(true);
-    setLoadingUsers(true);
-
+    setRefreshing(true);
     Promise.all([
-      fetch(`${API_BASE}/api/team`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (Array.isArray(data)) setTeam(data);
-        })
-        .catch(() => {}),
-
-      fetch(`${API_BASE}/api/auth/users`, { headers: authHeaders() })
-        .then((res) => {
-          if (!res.ok) throw new Error('Forbidden');
-          return res.json();
-        })
-        .then((data) => {
-          if (Array.isArray(data.users)) setAdminUsers(data.users);
-        })
-        .catch(() => {}),
-
-      fetch(`${API_BASE}/api/stats`, { headers: authHeaders() })
-        .then((res) => res.json())
-        .then((d) => d.counts && setStats(d))
-        .catch(() => {}),
-    ]).finally(() => {
-      setLoadingTeam(false);
-      setLoadingUsers(false);
-      setTimeout(() => setIsRefreshing(false), 400);
-    });
+      fetch(`${API_BASE}/api/team`)                         .then(r => safeJson(r)).then(d => Array.isArray(d) && setTeam(d)),
+      fetch(`${API_BASE}/api/auth/users`, { headers: headers() }).then(r => safeJson(r)).then(d => Array.isArray(d.users) && setAccounts(d.users)),
+      fetch(`${API_BASE}/api/stats`,      { headers: headers() }).then(r => safeJson(r)).then(d => d.counts && setStats(d)),
+    ]).finally(() => setTimeout(() => setRefreshing(false), 400));
   };
 
-  // Sync session on mount / token change
   useEffect(() => {
-    if (token) {
-      fetch(`${API_BASE}/api/auth/me`, { headers: authHeaders() })
-        .then((res) => res.json())
-        .then((d) => {
-          if (d && d.user) {
-            setUser(d.user);
-            localStorage.setItem(USER_KEY, JSON.stringify(d.user));
-          }
-        })
-        .catch(() => {});
-      loadData();
-    }
+    if (!token) return;
+    fetch(`${API_BASE}/api/auth/me`, { headers: headers() })
+      .then(r => safeJson(r))
+      .then(d => { if (d?.user) { setUser(d.user); localStorage.setItem(USER_KEY, JSON.stringify(d.user)); } });
+    loadData();
   }, [token]);
 
-  // Handle Login
+  // ── Login ─────────────────────────────────────────────────
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoginLoading(true);
-    setLoginError('');
-
+    setLogging(true); setLoginErr('');
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: loginEmail, password: loginPassword }),
+      const res  = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: loginId, password: loginPw }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Login failed.');
-      }
-
-      if (data.user.role !== 'superadmin') {
-        throw new Error('Access denied: Only the Owner / Super Admin can access this vault. Staff members please sign in at /admin.');
-      }
-
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.error || 'Login failed.');
+      if (data.user?.role !== 'superadmin') throw new Error('Access denied. Only the Owner can access this page.');
       localStorage.setItem(STORAGE_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setToken(data.token);
-      setUser(data.user);
-      showToast('Welcome back, Super Admin!', 'success');
-    } catch (err) {
-      setLoginError(err.message || 'Connection error.');
-      showToast(err.message || 'Login error.', 'error');
-    } finally {
-      setLoginLoading(false);
-    }
+      setToken(data.token); setUser(data.user);
+      showToast('Welcome, Super Admin!');
+    } catch (err) { setLoginErr(err.message); }
+    finally      { setLogging(false); }
   };
 
-  // Handle Logout
   const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(USER_KEY);
-    setToken(null);
-    setUser(null);
-    showToast('Signed out safely from Super Admin Vault.', 'success');
+    localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(USER_KEY);
+    setToken(null); setUser(null);
   };
 
-  // ─── TEAM MEMBER ACTIONS ───────────────────────────────────────────
-
-  // Open Create Member Modal
-  const openCreateTeamModal = () => {
-    setTeamFormData(INITIAL_MEMBER_FORM);
-    setShowMemberPassword(false);
-    setIsTeamModalOpen(true);
+  // ── Team Member CRUD ──────────────────────────────────────
+  const openAddMember = () => {
+    setMemberForm(BLANK_MEMBER);
+    setEditId(null);
+    setShowMemberPw(false);
+    setTeamModal('add');
   };
 
-  // Create Team Member
-  const handleCreateTeamMember = async (e) => {
-    e.preventDefault();
-    setFormSubmitting(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/api/team`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify(teamFormData),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create team member.');
-      }
-
-      showToast(data.message || 'Team member and login credentials created!', 'success');
-      setIsTeamModalOpen(false);
-      setTeamFormData(INITIAL_MEMBER_FORM);
-      loadData();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setFormSubmitting(false);
-    }
-  };
-
-  // Open Edit Member Modal
-  const openEditTeamModal = (m) => {
-    setEditingMember({
-      _id: m._id,
-      name: m.name || '',
-      position: m.position || '',
+  const openEditMember = (m) => {
+    setMemberForm({
+      name: m.name || '', position: m.position || '',
       department: m.department || 'Architecture',
-      profession: m.profession || '',
-      yearsexperience: m.yearsexperience || '',
-      photo: m.photo || '',
-      order: m.order || 0,
-      email: m.email || (m.user && m.user.email) || '',
-      password: '', // blank by default (only filled if resetting password)
+      profession: m.profession || '', yearsexperience: m.yearsexperience || '',
+      photo: m.photo || '', order: m.order || 0,
+      email: m.email || m.user?.email || '',
+      password: '',
     });
-    setShowMemberPassword(false);
+    setEditId(m._id);
+    setShowMemberPw(false);
+    setTeamModal('edit');
   };
 
-  // Save Edit Team Member
-  const handleUpdateTeamMember = async (e) => {
+  const handleSaveMember = async (e) => {
     e.preventDefault();
-    if (!editingMember) return;
-    setFormSubmitting(true);
-
+    setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/team/${editingMember._id}`, {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify(editingMember),
+      const isEdit = teamModal === 'edit';
+      const url    = isEdit ? `${API_BASE}/api/team/${editId}` : `${API_BASE}/api/team`;
+      const res    = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: headers(),
+        body: JSON.stringify(memberForm),
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to update team member.');
-      }
-
-      showToast(data.message || 'Team member updated successfully!', 'success');
-      setEditingMember(null);
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to save member.');
+      showToast(data.message || (isEdit ? 'Member updated.' : 'Member created.'));
+      setTeamModal(null);
       loadData();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setFormSubmitting(false);
-    }
+    } catch (err) { showToast(err.message, 'error'); }
+    finally      { setSubmitting(false); }
   };
 
-  // Delete Team Member
-  const handleDeleteTeamMember = (m) => {
+  const deleteMember = (m) => {
     const hasLogin = m.email || m.user;
-    setConfirmDialog({
-      title: 'Remove Team Member',
-      message: `Are you sure you want to delete "${m.name}"? ${
-        hasLogin
-          ? `Their login access for (${m.email || m.user?.email || 'admin'}) will also be immediately revoked.`
-          : 'They will be removed from the public website showcase.'
-      }`,
-      confirmText: 'Yes, Delete & Revoke',
+    setConfirm({
+      title: 'Delete Team Member',
+      message: `Delete "${m.name}"?${hasLogin ? ' Their /admin login access will also be revoked.' : ''}`,
       onConfirm: async () => {
-        try {
-          const res = await fetch(`${API_BASE}/api/team/${m._id}`, {
-            method: 'DELETE',
-            headers: authHeaders(),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Failed to delete team member.');
-
-          showToast(data.message || 'Team member removed.', 'success');
-          loadData();
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
+        const res = await fetch(`${API_BASE}/api/team/${m._id}`, { method: 'DELETE', headers: headers() });
+        const data = await safeJson(res);
+        if (res.ok) { showToast(data.message || 'Member deleted.'); loadData(); }
+        else showToast(data.error || 'Could not delete.', 'error');
       },
     });
   };
 
-  // ─── ADMIN ACCOUNTS ACTIONS ────────────────────────────────────────
-
-  // Create Standalone Admin Account
+  // ── Admin Account CRUD ────────────────────────────────────
   const handleCreateAccount = async (e) => {
     e.preventDefault();
-    setFormSubmitting(true);
-
+    setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/users`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          username: newAccountUsername,
-          email: newAccountEmail,
-          password: newAccountPassword,
-          role: newAccountRole,
-        }),
+      const res  = await fetch(`${API_BASE}/api/auth/users`, {
+        method: 'POST', headers: headers(), body: JSON.stringify(acctForm),
       });
-
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to create account.');
-
-      showToast(`Admin account for ${data.user.email} created!`, 'success');
-      setIsAccountModalOpen(false);
-      setNewAccountUsername('');
-      setNewAccountEmail('');
-      setNewAccountPassword('');
-      setNewAccountRole('admin');
+      showToast(`Account for ${data.user?.email} created.`);
+      setAcctModal(false);
+      setAcctForm({ username: '', email: '', password: '', role: 'admin' });
       loadData();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setFormSubmitting(false);
-    }
+    } catch (err) { showToast(err.message, 'error'); }
+    finally      { setSubmitting(false); }
   };
 
-  // Delete Standalone Admin Account
-  const handleDeleteAccount = (u) => {
-    setConfirmDialog({
-      title: 'Revoke Admin Login Access',
-      message: `Are you sure you want to revoke login access for "${u.username || u.email}"? They will no longer be able to log in at /admin.`,
-      confirmText: 'Yes, Revoke Access',
+  const deleteAccount = (u) => {
+    setConfirm({
+      title: 'Revoke Login Access',
+      message: `Remove "${u.username || u.email}" from admin access? They will no longer be able to log into /admin.`,
       onConfirm: async () => {
-        try {
-          const res = await fetch(`${API_BASE}/api/auth/users/${u._id}`, {
-            method: 'DELETE',
-            headers: authHeaders(),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Failed to revoke access.');
-
-          showToast(data.message || 'Account revoked.', 'success');
-          loadData();
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
+        const res = await fetch(`${API_BASE}/api/auth/users/${u._id}`, { method: 'DELETE', headers: headers() });
+        const data = await safeJson(res);
+        if (res.ok) { showToast(data.message || 'Account removed.'); loadData(); }
+        else showToast(data.error || 'Could not remove.', 'error');
       },
     });
   };
 
-  // Copy helper
-  const copyToClipboard = (text, label = 'email') => {
-    navigator.clipboard?.writeText(text);
-    showToast(`Copied ${label} to clipboard!`, 'success');
-  };
-
-  // Filtered Team Members
+  // ── Filtered data ─────────────────────────────────────────
   const filteredTeam = useMemo(() => {
-    return team.filter((m) => {
-      const q = teamSearch.toLowerCase();
-      const matchSearch =
-        !q ||
-        (m.name && m.name.toLowerCase().includes(q)) ||
-        (m.position && m.position.toLowerCase().includes(q)) ||
-        (m.department && m.department.toLowerCase().includes(q)) ||
-        (m.profession && m.profession.toLowerCase().includes(q)) ||
-        (m.email && m.email.toLowerCase().includes(q));
-
-      const matchDept = deptFilter === 'all' || m.department === deptFilter;
-      return matchSearch && matchDept;
+    return team.filter(m => {
+      const q   = teamSearch.toLowerCase();
+      const ok  = !q || [m.name, m.position, m.department, m.profession, m.email].some(v => v?.toLowerCase().includes(q));
+      const dep = deptFilter === 'all' || m.department === deptFilter;
+      return ok && dep;
     });
   }, [team, teamSearch, deptFilter]);
 
-  // Unique departments for filter dropdown
-  const uniqueDepartments = useMemo(() => {
-    const set = new Set(team.map((m) => m.department).filter(Boolean));
-    return Array.from(set);
-  }, [team]);
+  const uniqueDepts = useMemo(() => [...new Set(team.map(m => m.department).filter(Boolean))], [team]);
 
-  // Filtered Admin Accounts
   const filteredAccounts = useMemo(() => {
-    if (!accountSearch) return adminUsers;
-    const q = accountSearch.toLowerCase();
-    return adminUsers.filter(
-      (u) =>
-        (u.username && u.username.toLowerCase().includes(q)) ||
-        (u.email && u.email.toLowerCase().includes(q)) ||
-        (u.role && u.role.toLowerCase().includes(q))
-    );
-  }, [adminUsers, accountSearch]);
+    if (!acctSearch) return accounts;
+    const q = acctSearch.toLowerCase();
+    return accounts.filter(u => [u.username, u.email, u.role].some(v => v?.toLowerCase().includes(q)));
+  }, [accounts, acctSearch]);
 
-  // ─────────────────────────────────────────────────────────────
-  // 1. LOGIN GATE: NOT LOGGED IN OR NOT SUPER ADMIN
-  // ─────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  // LOGIN SCREEN
+  // ══════════════════════════════════════════════════════════
   if (!token || user?.role !== 'superadmin') {
     return (
       <div className="login-screen">
-        <div className="ambient-glow-orb glow-orb-gold"></div>
-        <div className="ambient-glow-orb glow-orb-blue"></div>
+        {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
-        {toast && (
-          <div className="toast-container">
-            <div className={`toast-card toast-${toast.type}`}>
-              <div className="toast-icon">
-                {toast.type === 'success' ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                  </svg>
-                )}
-              </div>
-              <div className="toast-content">
-                <span className="toast-title">{toast.type === 'success' ? 'Success' : 'Notice'}</span>
-                <p className="toast-message">{toast.message}</p>
-              </div>
+        <div className="login-card">
+          <div className="login-logo-wrap">
+            <img src="/assets/logos/logo.png" alt="Selam" className="login-logo"
+              onError={e => { e.currentTarget.src = '/logo.png'; }} />
+            <div>
+              <div className="login-brand">Selam Consulting</div>
+              <div className="login-brand-sub">Owner Super Admin</div>
             </div>
           </div>
-        )}
 
-        <div
-          className="login-card"
-          style={{
-            border: '1px solid rgba(212, 175, 55, 0.45)',
-            boxShadow: '0 30px 80px rgba(0, 0, 0, 0.85), 0 0 60px rgba(212, 175, 55, 0.2)',
-          }}
-        >
-          <div
-            className="login-header-emblem"
-            style={{ background: 'radial-gradient(circle, rgba(212, 175, 55, 0.3) 0%, rgba(13, 18, 30, 0.95) 80%)' }}
-          >
-            <span style={{ fontSize: '2.2rem', filter: 'drop-shadow(0 0 12px rgba(212, 175, 55, 0.6))' }}>👑</span>
+          <div style={{ marginBottom: 20 }}>
+            <span className="owner-badge">👑 Owner Access Only</span>
           </div>
 
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 14px',
-              borderRadius: '9999px',
-              background: 'rgba(212, 175, 55, 0.12)',
-              border: '1px solid rgba(212, 175, 55, 0.35)',
-              color: 'var(--accent-gold-light)',
-              fontSize: '0.74rem',
-              fontWeight: '800',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              marginBottom: '14px',
-            }}
-          >
-            <span className="status-pulse-dot" style={{ backgroundColor: '#d4af37' }}></span>
-            Root Owner Access
-          </div>
-
-          <h1 className="login-title" style={{ fontSize: '1.7rem' }}>Super Admin Vault</h1>
-          <p className="login-subtitle">
-            System Ownership &amp; Team Member Governance
-          </p>
-
-          {loginError && (
-            <div
-              style={{
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: '10px',
-                padding: '13px 16px',
-                marginBottom: '20px',
-                color: '#f87171',
-                fontSize: '0.86rem',
-                textAlign: 'left',
-                lineHeight: 1.5,
-              }}
-            >
-              {loginError}
-            </div>
-          )}
+          <h1 className="login-title">Super Admin Login</h1>
+          <p className="login-subtitle">Manage team members, credentials, and staff accounts</p>
 
           {token && user?.role !== 'superadmin' && (
-            <div
-              style={{
-                background: 'rgba(234, 179, 8, 0.12)',
-                border: '1px solid rgba(234, 179, 8, 0.35)',
-                borderRadius: '10px',
-                padding: '14px 16px',
-                marginBottom: '20px',
-                color: '#facc15',
-                fontSize: '0.86rem',
-                textAlign: 'left',
-              }}
-            >
-              You are signed in as a standard Staff Member (<strong>{user.email}</strong>). Super Admin authorization is required to access this vault.
-              <div style={{ marginTop: '12px' }}>
-                <Link to="/admin" className="btn-secondary" style={{ display: 'inline-flex', padding: '7px 14px', fontSize: '0.82rem' }}>
-                  Open Staff Admin Portal →
-                </Link>
-              </div>
+            <div className="alert alert-warn" style={{ marginBottom: 16 }}>
+              You are signed in as a staff member (<strong>{user.email}</strong>). Super Admin access is required.
+              <br />
+              <Link to="/admin" style={{ color: 'inherit', fontWeight: 600 }}>→ Go to Staff Admin Portal</Link>
             </div>
           )}
+
+          {loginErr && <div className="alert alert-error">{loginErr}</div>}
 
           <form onSubmit={handleLogin} className="login-form">
             <div className="form-field">
-              <label>Owner Email or Username</label>
-              <div className="input-with-icon-wrapper">
-                <span className="input-icon-prefix">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <label>Email or Username</label>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   </svg>
                 </span>
-                <input
-                  type="text"
-                  className="form-input has-prefix"
-                  required
-                  placeholder="admin@selam.com"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                />
+                <input type="text" className="form-input has-prefix" required placeholder="admin@selam.com"
+                  value={loginId} onChange={e => setLoginId(e.target.value)} />
               </div>
             </div>
 
             <div className="form-field">
-              <label>Owner Security Key</label>
-              <div className="input-with-icon-wrapper">
-                <span className="input-icon-prefix">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              <label>Password</label>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                 </span>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="form-input has-prefix"
-                  required
-                  placeholder="••••••••"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="input-toggle-btn"
-                  onClick={() => setShowPassword(!showPassword)}
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                      <line x1="1" y1="1" x2="23" y2="23"></line>
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                  )}
+                <input type={showPw ? 'text' : 'password'} className="form-input has-prefix" required placeholder="••••••••"
+                  value={loginPw} onChange={e => setLoginPw(e.target.value)} />
+                <button type="button" className="input-toggle-btn" onClick={() => setShowPw(!showPw)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    {showPw
+                      ? <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                      : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                    }
+                  </svg>
                 </button>
               </div>
             </div>
 
-            <button type="submit" className="login-btn-primary" disabled={loginLoading}>
-              {loginLoading ? (
-                <>
-                  <span className="status-pulse-dot" style={{ backgroundColor: '#080b11' }}></span>
-                  <span>Verifying Clearance...</span>
-                </>
-              ) : (
-                <>
-                  <span>Sign In as Super Admin 👑</span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </>
-              )}
+            <button type="submit" className="btn-primary" disabled={logging}>
+              {logging ? 'Signing in…' : '👑 Sign In as Owner'}
             </button>
           </form>
 
-          {/* Quick Demo Autofill */}
-          <div className="demo-fill-pill">
-            <div>
-              <span>Owner Auth: </span>
-              <strong>admin@selam.com</strong>
-            </div>
-            <button
-              type="button"
-              className="btn-mini-fill"
-              onClick={() => {
-                setLoginEmail('admin@selam.com');
-                setLoginPassword('admin123');
-              }}
-            >
-              Autofill
-            </button>
-          </div>
-
-          <div
-            style={{
-              marginTop: '24px',
-              paddingTop: '18px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
-          >
-            <Link to="/admin" style={{ color: 'var(--accent-gold)', fontSize: '0.84rem', textDecoration: 'none', fontWeight: '600' }}>
-              Staff Team Member? Go to Admin Portal (/admin) →
-            </Link>
-            <Link to="/" style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textDecoration: 'none' }}>
-              ← Return to Selam Consulting Live Website
-            </Link>
-          </div>
+          <Link to="/admin" className="link-muted" style={{ marginTop: 12, display: 'block' }}>
+            Staff member? → Go to Admin Portal (/admin)
+          </Link>
+          <Link to="/" className="link-muted">← Return to Selam website</Link>
         </div>
       </div>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 2. LOGGED IN SUPER ADMIN DASHBOARD
-  // ─────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  // OWNER DASHBOARD
+  // ══════════════════════════════════════════════════════════
   return (
     <div className="admin-layout">
-      {toast && (
-        <div className="toast-container">
-          <div className={`toast-card toast-${toast.type}`}>
-            <div className="toast-icon">
-              {toast.type === 'success' ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-              )}
-            </div>
-            <div className="toast-content">
-              <span className="toast-title">{toast.type === 'success' ? 'Success' : 'Notice'}</span>
-              <p className="toast-message">{toast.message}</p>
-            </div>
-            <button type="button" className="toast-close-btn" onClick={() => setToast(null)}>
-              &times;
-            </button>
-          </div>
-        </div>
-      )}
+      {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
-      {/* SUPER ADMIN SIDEBAR */}
-      <aside className="admin-sidebar">
+      {/* ── SIDEBAR ──────────────────────────────────────── */}
+      <aside className="sidebar">
         <div className="sidebar-brand">
-          <img
-            src="/assets/logos/logo.png"
-            alt="Selam Logo"
-            className="sidebar-logo"
-            onError={(e) => {
-              e.currentTarget.src = '/logo.png';
-            }}
-          />
-          <div>
-            <div className="sidebar-brand-title">SELAM CONSULTING</div>
-            <div className="sidebar-brand-sub" style={{ color: 'var(--accent-gold-light)', fontWeight: '800' }}>
-              👑 OWNER VAULT
-            </div>
+          <img src="/assets/logos/logo.png" alt="Selam" className="sidebar-logo"
+            onError={e => { e.currentTarget.src = '/logo.png'; }} />
+          <div className="sidebar-brand-text">
+            <div className="sidebar-brand-name">Selam Consulting</div>
+            <div className="sidebar-brand-role">Owner Portal</div>
           </div>
         </div>
 
         <nav className="sidebar-nav">
-          <div className="sidebar-section-header">TEAM &amp; ACCESS CONTROL</div>
+          <div className="sidebar-section">Management</div>
 
-          {/* TEAM MEMBERS TAB (Primary requested page) */}
-          <button
-            type="button"
-            className={`nav-tab-btn ${activeTab === 'team' ? 'active' : ''}`}
-            onClick={() => setActiveTab('team')}
-          >
+          <button type="button" className={`nav-btn ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
             <span>Team Members</span>
-            <span
-              className="sidebar-count-chip"
-              style={activeTab === 'team' ? { background: '#080b11', color: 'var(--accent-gold)' } : {}}
-            >
-              {team.length}
-            </span>
+            <span className="nav-count">{team.length}</span>
           </button>
 
-          {/* ADMIN ACCOUNTS TAB */}
-          <button
-            type="button"
-            className={`nav-tab-btn ${activeTab === 'accounts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('accounts')}
-          >
+          <button type="button" className={`nav-btn ${tab === 'accounts' ? 'active' : ''}`} onClick={() => setTab('accounts')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
             <span>Admin Accounts</span>
-            <span
-              className="sidebar-count-chip"
-              style={activeTab === 'accounts' ? { background: '#080b11', color: 'var(--accent-gold)' } : {}}
-            >
-              {adminUsers.length}
-            </span>
+            <span className="nav-count">{accounts.length}</span>
           </button>
 
-          <div className="sidebar-section-header" style={{ marginTop: '16px' }}>
-            OPERATIONAL SHORTCUTS
-          </div>
+          <div className="sidebar-section" style={{ marginTop: 8 }}>Shortcuts</div>
 
-          <Link to="/admin" className="nav-tab-btn" style={{ textDecoration: 'none' }}>
+          <Link to="/admin" className="nav-btn" style={{ textDecoration: 'none' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect width="20" height="16" x="2" y="4" rx="2"></rect>
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+              <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
             </svg>
             <span>Staff Admin Portal</span>
-            <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-dim)' }}>↗</span>
+            <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-light)' }}>↗</span>
           </Link>
         </nav>
 
         <div className="sidebar-footer">
-          <div
-            className="user-profile-badge"
-            style={{ borderColor: 'rgba(212, 175, 55, 0.35)', background: 'rgba(212, 175, 55, 0.06)' }}
-          >
-            <div
-              className="user-avatar"
-              style={{ border: '2px solid var(--accent-gold-light)', boxShadow: '0 0 16px rgba(212,175,55,0.45)' }}
-            >
-              {getInitials(user?.username || user?.email || 'Owner')}
-            </div>
-            <div className="user-info-text">
-              <div className="user-name">{user?.email}</div>
-              <div className="user-role" style={{ color: 'var(--accent-gold-light)', fontWeight: '800' }}>
-                👑 Super Admin (Owner)
-              </div>
+          <div className="user-card">
+            <div className="user-avatar" style={{ background: '#92400e' }}>{getInitials(user?.username || user?.email)}</div>
+            <div className="user-info">
+              <div className="user-email">{user?.email}</div>
+              <div className="user-role-tag">👑 Super Admin</div>
             </div>
           </div>
-
-          <Link
-            to="/admin"
-            className="btn-sidebar-action"
-            style={{
-              background: 'rgba(212, 175, 55, 0.08)',
-              borderColor: 'rgba(212, 175, 55, 0.28)',
-              color: 'var(--accent-gold-light)',
-            }}
-          >
-            Switch to Staff Admin (/admin)
-          </Link>
-
-          <Link to="/" className="btn-sidebar-action">
+          <Link to="/" className="sidebar-action-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/>
             </svg>
             View Live Website
           </Link>
-
-          <button type="button" className="btn-sidebar-action btn-sidebar-logout" onClick={handleLogout}>
+          <button type="button" className="sidebar-action-btn logout" onClick={handleLogout}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/>
             </svg>
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* SUPER ADMIN MAIN CONTENT */}
+      {/* ── MAIN ─────────────────────────────────────────── */}
       <main className="admin-main">
-        {/* TOPBAR */}
-        <header className="admin-topbar">
-          <div className="topbar-left">
-            <div className="topbar-breadcrumbs">
-              <span>Owner Vault</span>
-              <span>/</span>
-              <span className="active">
-                {activeTab === 'team' ? 'Team Members Management' : 'Admin Accounts Governance'}
-              </span>
-            </div>
-          </div>
-
-          <div className="topbar-actions">
-            <div
-              className="status-indicator-pill"
-              style={{
-                background: 'rgba(212, 175, 55, 0.1)',
-                borderColor: 'rgba(212, 175, 55, 0.35)',
-                color: 'var(--accent-gold-light)',
-              }}
-            >
-              <span className="status-pulse-dot" style={{ backgroundColor: '#d4af37' }}></span>
-              <span>Root Clearance Active</span>
-            </div>
-
-            <button type="button" className="btn-secondary" onClick={loadData} disabled={isRefreshing}>
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                style={{
-                  transform: isRefreshing ? 'rotate(360deg)' : 'none',
-                  transition: 'transform 0.6s ease',
-                }}
-              >
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+        <header className="topbar">
+          <span className="topbar-title">
+            {tab === 'team' ? 'Team Members Management' : 'Admin Accounts'}
+          </span>
+          <div className="topbar-right">
+            <span className="status-dot"><span className="dot" />Connected</span>
+            <button className="btn-secondary" onClick={loadData} disabled={refreshing}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                style={{ transition: 'transform .6s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
               </svg>
-              <span>{isRefreshing ? 'Syncing...' : 'Sync Data'}</span>
+              Refresh
             </button>
           </div>
         </header>
 
-        <div className="admin-content">
-          {/* STATS OVERVIEW CARDS */}
+        <div className="content-area">
+          {/* ── STATS ──────────────────────────────────────── */}
           <div className="stats-grid">
-            <div
-              className={`stat-card ${activeTab === 'team' ? 'superadmin-stat-card-gold' : ''}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => setActiveTab('team')}
-            >
-              <div className="stat-icon gold">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-              </div>
-              <div>
-                <div className="stat-value">{team.length}</div>
-                <div className="stat-label">Total Team Members</div>
-              </div>
-            </div>
-
-            <div
-              className={`stat-card ${activeTab === 'accounts' ? 'superadmin-stat-card-gold' : ''}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => setActiveTab('accounts')}
-            >
+            <div className={`stat-card ${tab === 'team' ? 'active' : ''}`} style={{ cursor: 'pointer' }} onClick={() => setTab('team')}>
               <div className="stat-icon blue">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
               </div>
-              <div>
-                <div className="stat-value">{adminUsers.length}</div>
-                <div className="stat-label">Active Staff Logins</div>
+              <div><div className="stat-value">{team.length}</div><div className="stat-label">Team Members</div></div>
+            </div>
+
+            <div className={`stat-card ${tab === 'accounts' ? 'active' : ''}`} style={{ cursor: 'pointer' }} onClick={() => setTab('accounts')}>
+              <div className="stat-icon gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
               </div>
+              <div><div className="stat-value">{accounts.length}</div><div className="stat-label">Staff Login Accounts</div></div>
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon emerald">
+              <div className="stat-icon teal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M2 20h20"></path>
-                  <path d="M5 20V8.2c0-.7.6-1.2 1.3-1.2h11.4c.7 0 1.3.5 1.3 1.2V20"></path>
+                  <path d="M2 20h20"/><path d="M5 20V8.2c0-.7.6-1.2 1.3-1.2h11.4c.7 0 1.3.5 1.3 1.2V20"/>
                 </svg>
               </div>
-              <div>
-                <div className="stat-value">{stats.counts?.projects || 0}</div>
-                <div className="stat-label">Portfolio Projects</div>
-              </div>
+              <div><div className="stat-value">{stats.counts?.projects || 0}</div><div className="stat-label">Portfolio Projects</div></div>
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon purple">
+              <div className="stat-icon grey">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect width="20" height="16" x="2" y="4" rx="2"></rect>
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                  <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                 </svg>
               </div>
-              <div>
-                <div className="stat-value">{stats.counts?.submissions || 0}</div>
-                <div className="stat-label">Client Enquiries</div>
-              </div>
+              <div><div className="stat-value">{stats.counts?.submissions || 0}</div><div className="stat-label">Client Inquiries</div></div>
             </div>
           </div>
 
-          {/* ═════════════════════════════════════════════════════════════════ */}
-          {/* TAB 1: TEAM MEMBERS MANAGEMENT (PAGE REQUESTED BY USER) */}
-          {/* ═════════════════════════════════════════════════════════════════ */}
-          {activeTab === 'team' && (
+          {/* ════════════════════════════════════════════════ */}
+          {/* TAB: TEAM MEMBERS                               */}
+          {/* ════════════════════════════════════════════════ */}
+          {tab === 'team' && (
             <>
-              {/* SUPER ADMIN GUIDANCE BANNER */}
-              <div className="superadmin-banner">
-                <div className="superadmin-banner-icon">👥</div>
-                <div>
-                  <h4>Team Directory &amp; Staff Login Provisioning</h4>
-                  <p>
-                    Here you can <strong>create, edit, and delete team members</strong>. When adding or editing a member, you can assign them an <strong>Email and Password</strong>. They can immediately use those credentials to sign in at the <strong>Staff Admin Portal (/admin)</strong> to manage projects, inquiries, and careers. Deleting a member also revokes their login access.
-                  </p>
-                </div>
+              <div className="info-banner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>
+                  Create, edit, or delete team members here. You can optionally give each member an <strong>email and password</strong> so they can log into the <strong>Staff Admin Portal (/admin)</strong>. Deleting a member also revokes their login access.
+                </span>
               </div>
 
-              {/* TEAM MEMBERS TABLE PANEL */}
               <div className="panel">
                 <div className="panel-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <h3 className="panel-title">Team Members Directory</h3>
-                    <span className="badge badge-gold">{filteredTeam.length} Members</span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {/* Department Filter */}
-                    <select
-                      className="form-input"
-                      style={{ width: 'auto', padding: '8px 14px', fontSize: '0.84rem' }}
-                      value={deptFilter}
-                      onChange={(e) => setDeptFilter(e.target.value)}
-                    >
-                      <option value="all">All Departments ({team.length})</option>
-                      {uniqueDepartments.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
+                  <span className="panel-title">
+                    Team Directory <span className="badge badge-blue" style={{ marginLeft: 8 }}>{filteredTeam.length} members</span>
+                  </span>
+                  <div className="panel-actions">
+                    <select className="search-input" style={{ width: 'auto' }} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+                      <option value="all">All Departments</option>
+                      {uniqueDepts.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
-
-                    {/* Search Input */}
-                    <input
-                      type="text"
-                      className="table-search-input"
-                      placeholder="Search by name, role, email..."
-                      value={teamSearch}
-                      onChange={(e) => setTeamSearch(e.target.value)}
-                    />
-
-                    {/* + Add Team Member Button */}
-                    <button type="button" className="btn-gold" onClick={openCreateTeamModal}>
-                      + Add Team Member
-                    </button>
+                    <input className="search-input" placeholder="Search name, role, email…"
+                      value={teamSearch} onChange={e => setTeamSearch(e.target.value)} />
+                    <button className="btn-accent" onClick={openAddMember}>+ Add Member</button>
                   </div>
                 </div>
 
-                <div className="table-responsive">
-                  <table className="data-table">
+                <div className="table-wrap">
+                  <table>
                     <thead>
                       <tr>
-                        <th>Member Name &amp; Photo</th>
+                        <th>Name</th>
                         <th>Position &amp; Department</th>
-                        <th>Profession &amp; Exp.</th>
-                        <th>Staff Login Credentials (/admin)</th>
-                        <th>Order</th>
+                        <th>Profession</th>
+                        <th>Experience</th>
+                        <th>Login Access (/admin)</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTeam.length > 0 ? (
-                        filteredTeam.map((m) => {
-                          const photoUrl = toDirectImageUrl(m.photo);
-                          const loginEmail = m.email || (m.user && m.user.email);
-
-                          return (
-                            <tr key={m._id || m.name}>
-                              {/* Member info */}
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                  <div
-                                    className="avatar-circle-sm"
-                                    style={{
-                                      width: '42px',
-                                      height: '42px',
-                                      borderRadius: '12px',
-                                      overflow: 'hidden',
-                                      border: '1px solid rgba(212, 175, 55, 0.35)',
-                                    }}
-                                  >
-                                    {photoUrl ? (
-                                      <img
-                                        src={photoUrl}
-                                        alt={m.name}
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        onError={(e) => {
-                                          e.currentTarget.style.display = 'none';
-                                        }}
-                                      />
-                                    ) : (
-                                      getInitials(m.name)
-                                    )}
-                                  </div>
-                                  <div>
-                                    <strong style={{ fontSize: '0.94rem', display: 'block', color: 'var(--text-main)' }}>
-                                      {m.name}
-                                    </strong>
-                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
-                                      {m.department || 'Team'}
-                                    </span>
-                                  </div>
+                      {filteredTeam.length > 0 ? filteredTeam.map(m => {
+                        const loginEmail = m.email || m.user?.email;
+                        const photoUrl   = toDirectImageUrl(m.photo);
+                        return (
+                          <tr key={m._id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                  width: 36, height: 36, borderRadius: 8,
+                                  background: 'var(--primary-light)', color: 'var(--primary)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, overflow: 'hidden',
+                                  border: '1px solid var(--border)',
+                                }}>
+                                  {photoUrl
+                                    ? <img src={photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                    : getInitials(m.name)
+                                  }
                                 </div>
-                              </td>
-
-                              {/* Position & Department */}
-                              <td>
-                                <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.88rem' }}>
-                                  {m.position || 'Specialist'}
-                                </div>
-                                <span
-                                  className="badge badge-blue"
-                                  style={{ marginTop: '4px', fontSize: '0.7rem', padding: '2px 8px' }}
-                                >
-                                  {m.department || 'General'}
-                                </span>
-                              </td>
-
-                              {/* Profession & Experience */}
-                              <td>
-                                <div style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
-                                  {m.profession || 'Consultant'}
-                                </div>
-                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                  {m.yearsexperience ? `${m.yearsexperience} exp.` : '—'}
-                                </span>
-                              </td>
-
-                              {/* Login Access Credentials */}
-                              <td>
-                                {loginEmail ? (
-                                  <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <span className="badge badge-emerald" style={{ fontSize: '0.7rem', padding: '3px 8px' }}>
-                                        <span className="status-pulse-dot" style={{ backgroundColor: '#10b981', width: '6px', height: '6px' }}></span>
-                                        Can Login
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="btn-action-icon"
-                                        style={{ width: '24px', height: '24px', fontSize: '0.7rem' }}
-                                        title="Copy Login Email"
-                                        onClick={() => copyToClipboard(loginEmail, 'login email')}
-                                      >
-                                        📋
-                                      </button>
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.82rem',
-                                        color: 'var(--accent-gold-light)',
-                                        marginTop: '4px',
-                                      }}
-                                    >
-                                      {loginEmail}
-                                    </div>
+                                <strong>{m.name}</strong>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 500 }}>{m.position || '—'}</div>
+                              <span className="badge badge-grey" style={{ marginTop: 3 }}>{m.department}</span>
+                            </td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{m.profession || '—'}</td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{m.yearsexperience || '—'}</td>
+                            <td>
+                              {loginEmail
+                                ? <div>
+                                    <span className="badge badge-teal" style={{ marginBottom: 4 }}>✓ Can Login</span>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{loginEmail}</div>
                                   </div>
-                                ) : (
-                                  <div>
-                                    <span
-                                      className="badge"
-                                      style={{
-                                        background: 'rgba(255,255,255,0.06)',
-                                        color: 'var(--text-dim)',
-                                        fontSize: '0.7rem',
-                                        padding: '3px 8px',
-                                      }}
-                                    >
-                                      Showcase Only
-                                    </span>
-                                    <span
-                                      style={{
-                                        display: 'block',
-                                        fontSize: '0.74rem',
-                                        color: 'var(--text-dim)',
-                                        marginTop: '3px',
-                                      }}
-                                    >
-                                      No /admin login
-                                    </span>
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Order */}
-                              <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                                #{m.order || 0}
-                              </td>
-
-                              {/* Action Buttons */}
-                              <td>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <button
-                                    type="button"
-                                    className="btn-action-icon"
-                                    title="Edit Team Member & Credentials"
-                                    onClick={() => openEditTeamModal(m)}
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn-action-icon delete"
-                                    title="Delete Member & Revoke Login"
-                                    onClick={() => handleDeleteTeamMember(m)}
-                                  >
-                                    🗑
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan="6" className="empty-state">
-                            <div className="empty-state-icon">👥</div>
-                            <p>{loadingTeam ? 'Loading team members...' : 'No team members match your criteria.'}</p>
-                          </td>
-                        </tr>
+                                : <span className="badge badge-grey">No Login</span>
+                              }
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" className="btn-icon edit" title="Edit" onClick={() => openEditMember(m)}>✏</button>
+                                <button type="button" className="btn-icon danger" title="Delete" onClick={() => deleteMember(m)}>🗑</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }) : (
+                        <tr className="empty-row"><td colSpan="6">No team members found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1131,142 +527,74 @@ export default function SuperAdmin() {
             </>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════════ */}
-          {/* TAB 2: SYSTEM ADMIN ACCOUNTS GOVERNANCE */}
-          {/* ═════════════════════════════════════════════════════════════════ */}
-          {activeTab === 'accounts' && (
+          {/* ════════════════════════════════════════════════ */}
+          {/* TAB: ADMIN ACCOUNTS                             */}
+          {/* ════════════════════════════════════════════════ */}
+          {tab === 'accounts' && (
             <>
-              <div className="superadmin-banner">
-                <div className="superadmin-banner-icon">🛡️</div>
-                <div>
-                  <h4>Staff Clearance Accounts</h4>
-                  <p>
-                    Below is the complete list of system accounts with permission to log in to <strong>/admin</strong>. You can create direct staff accounts here or revoke access for any user at any time.
-                  </p>
-                </div>
+              <div className="info-banner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>
+                  All accounts that have login access to <strong>/admin</strong>. You can create standalone accounts here, or give team members login access from the Team Members tab.
+                </span>
               </div>
 
               <div className="panel">
                 <div className="panel-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <h3 className="panel-title">System Admin Accounts</h3>
-                    <span className="badge badge-gold">{filteredAccounts.length} Active Logins</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      className="table-search-input"
-                      placeholder="Search admin accounts..."
-                      value={accountSearch}
-                      onChange={(e) => setAccountSearch(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="btn-gold"
-                      onClick={() => {
-                        setNewAccountUsername('');
-                        setNewAccountEmail('');
-                        setNewAccountPassword('');
-                        setNewAccountRole('admin');
-                        setIsAccountModalOpen(true);
-                      }}
-                    >
-                      + Create Admin Account
+                  <span className="panel-title">
+                    Staff Login Accounts <span className="badge badge-gold" style={{ marginLeft: 8 }}>{filteredAccounts.length}</span>
+                  </span>
+                  <div className="panel-actions">
+                    <input className="search-input" placeholder="Search accounts…"
+                      value={acctSearch} onChange={e => setAcctSearch(e.target.value)} />
+                    <button className="btn-accent" onClick={() => { setAcctForm({ username: '', email: '', password: '', role: 'admin' }); setAcctModal(true); }}>
+                      + Create Account
                     </button>
                   </div>
                 </div>
 
-                <div className="table-responsive">
-                  <table className="data-table">
+                <div className="table-wrap">
+                  <table>
                     <thead>
-                      <tr>
-                        <th>Account Holder</th>
-                        <th>Login Email</th>
-                        <th>Clearance Role</th>
-                        <th>Created On</th>
-                        <th>Access Actions</th>
-                      </tr>
+                      <tr><th>Username</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
-                      {filteredAccounts.length > 0 ? (
-                        filteredAccounts.map((u) => {
-                          const isSelf = u._id === user?.id || u._id === user?._id || u.email === user?.email;
-                          const isSuper = u.role === 'superadmin';
-                          return (
-                            <tr key={u._id}>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <div
-                                    className="avatar-circle-sm"
-                                    style={
-                                      isSuper
-                                        ? {
-                                            borderColor: 'rgba(212, 175, 55, 0.7)',
-                                            background:
-                                              'linear-gradient(135deg, rgba(212,175,55,0.3), rgba(245,215,127,0.15))',
-                                          }
-                                        : {}
-                                    }
-                                  >
-                                    {getInitials(u.username || u.email)}
-                                  </div>
-                                  <div>
-                                    <strong style={{ fontSize: '0.92rem' }}>{u.username}</strong>
-                                    {isSelf && (
-                                      <span className="badge badge-gold" style={{ marginLeft: '8px', fontSize: '0.65rem' }}>
-                                        You (Owner)
-                                      </span>
-                                    )}
-                                  </div>
+                      {filteredAccounts.length > 0 ? filteredAccounts.map(u => {
+                        const isSelf  = u._id === user?.id || u._id === user?._id || u.email === user?.email;
+                        const isOwner = u.role === 'superadmin';
+                        return (
+                          <tr key={u._id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div className="user-avatar" style={{ width: 30, height: 30, fontSize: '0.72rem', background: isOwner ? '#92400e' : 'var(--primary)' }}>
+                                  {getInitials(u.username || u.email)}
                                 </div>
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <a href={`mailto:${u.email}`} style={{ color: 'var(--accent-gold)', textDecoration: 'none' }}>
-                                    {u.email}
-                                  </a>
-                                  <button
-                                    type="button"
-                                    className="btn-action-icon"
-                                    style={{ width: '26px', height: '26px', fontSize: '0.72rem' }}
-                                    title="Copy Email"
-                                    onClick={() => copyToClipboard(u.email)}
-                                  >
-                                    📋
-                                  </button>
-                                </div>
-                              </td>
-                              <td>
-                                {isSuper ? (
-                                  <span className="badge badge-gold">👑 Super Admin</span>
-                                ) : (
-                                  <span className="badge badge-blue">Team Member (Admin)</span>
-                                )}
-                              </td>
-                              <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Initial Setup'}</td>
-                              <td>
-                                {isSelf ? (
-                                  <span className="badge badge-emerald">Active Owner</span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="btn-action-icon delete"
-                                    title="Revoke Login Access"
-                                    onClick={() => handleDeleteAccount(u)}
-                                  >
-                                    🗑
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan="5" className="empty-state">
-                            {loadingUsers ? 'Loading accounts...' : 'No accounts match your search.'}
-                          </td>
-                        </tr>
+                                <strong>{u.username}</strong>
+                                {isSelf && <span className="badge badge-gold">You</span>}
+                              </div>
+                            </td>
+                            <td><a href={`mailto:${u.email}`} style={{ color: 'var(--primary)' }}>{u.email}</a></td>
+                            <td>
+                              {isOwner
+                                ? <span className="badge badge-gold">👑 Super Admin</span>
+                                : <span className="badge badge-blue">Staff Admin</span>
+                              }
+                            </td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+                              {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                            </td>
+                            <td>
+                              {isSelf
+                                ? <span className="badge badge-teal">Active (You)</span>
+                                : <button type="button" className="btn-icon danger" title="Revoke" onClick={() => deleteAccount(u)}>🗑</button>
+                              }
+                            </td>
+                          </tr>
+                        );
+                      }) : (
+                        <tr className="empty-row"><td colSpan="5">No accounts found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1277,177 +605,96 @@ export default function SuperAdmin() {
         </div>
       </main>
 
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {/* MODAL: CREATE TEAM MEMBER (WITH EMAIL & PASSWORD LOGIN FIELDS)   */}
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {isTeamModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsTeamModalOpen(false)}>
-          <div
-            className="modal-card"
-            style={{ maxWidth: '640px', width: '92%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3 className="modal-title">+ Add Team Member &amp; Login Access</h3>
-              <button type="button" className="modal-close" onClick={() => setIsTeamModalOpen(false)}>
-                &times;
-              </button>
+      {/* ── TEAM MEMBER ADD / EDIT MODAL ─────────────────── */}
+      {(teamModal === 'add' || teamModal === 'edit') && (
+        <div className="modal-backdrop" onClick={() => setTeamModal(null)}>
+          <div className="modal wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <span className="modal-title">{teamModal === 'add' ? 'Add Team Member' : `Edit: ${memberForm.name}`}</span>
+              <button className="modal-close" onClick={() => setTeamModal(null)}>×</button>
             </div>
-            <form onSubmit={handleCreateTeamMember}>
-              <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
-                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
-                  Add a team member to the firm portfolio. You can also provision their staff credentials so they can sign into <strong>/admin</strong>.
-                </p>
-
+            <form onSubmit={handleSaveMember}>
+              <div className="modal-body">
                 <div className="form-field">
                   <label>Full Name *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    required
-                    placeholder="e.g. Alemu Tamiru"
-                    value={teamFormData.name}
-                    onChange={(e) => setTeamFormData({ ...teamFormData, name: e.target.value })}
-                  />
+                  <input type="text" className="form-input" required placeholder="e.g. Alemu Tamiru"
+                    value={memberForm.name} onChange={e => setMemberForm({ ...memberForm, name: e.target.value })} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-grid">
                   <div className="form-field">
                     <label>Position / Role</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. Lead Architect"
-                      value={teamFormData.position}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, position: e.target.value })}
-                    />
+                    <input type="text" className="form-input" placeholder="e.g. Lead Architect"
+                      value={memberForm.position} onChange={e => setMemberForm({ ...memberForm, position: e.target.value })} />
                   </div>
-
                   <div className="form-field">
                     <label>Department</label>
-                    <select
-                      className="form-input"
-                      value={teamFormData.department}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, department: e.target.value })}
-                    >
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
+                    <select className="form-input" value={memberForm.department} onChange={e => setMemberForm({ ...memberForm, department: e.target.value })}>
+                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-grid">
                   <div className="form-field">
-                    <label>Profession / Specialization</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. Practicing Architect"
-                      value={teamFormData.profession}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, profession: e.target.value })}
-                    />
+                    <label>Profession</label>
+                    <input type="text" className="form-input" placeholder="e.g. Practicing Architect"
+                      value={memberForm.profession} onChange={e => setMemberForm({ ...memberForm, profession: e.target.value })} />
                   </div>
-
                   <div className="form-field">
                     <label>Years of Experience</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. 8 years"
-                      value={teamFormData.yearsexperience}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, yearsexperience: e.target.value })}
-                    />
+                    <input type="text" className="form-input" placeholder="e.g. 8 years"
+                      value={memberForm.yearsexperience} onChange={e => setMemberForm({ ...memberForm, yearsexperience: e.target.value })} />
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
+                <div className="form-grid">
                   <div className="form-field">
-                    <label>Photo URL (Optional)</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="https://... or /assets/team/..."
-                      value={teamFormData.photo}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, photo: e.target.value })}
-                    />
+                    <label>Photo URL (optional)</label>
+                    <input type="text" className="form-input" placeholder="https://… or /assets/…"
+                      value={memberForm.photo} onChange={e => setMemberForm({ ...memberForm, photo: e.target.value })} />
                   </div>
-
                   <div className="form-field">
-                    <label>Display Sort Order</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      placeholder="0"
-                      value={teamFormData.order}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, order: Number(e.target.value) })}
-                    />
+                    <label>Sort Order</label>
+                    <input type="number" className="form-input" placeholder="0"
+                      value={memberForm.order} onChange={e => setMemberForm({ ...memberForm, order: Number(e.target.value) })} />
                   </div>
                 </div>
 
-                {/* ─── CREDENTIALS PROVISIONING BOX ─────────────────── */}
-                <div
-                  style={{
-                    background: 'rgba(212, 175, 55, 0.06)',
-                    border: '1px solid rgba(212, 175, 55, 0.35)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    marginTop: '16px',
-                    boxShadow: '0 0 25px rgba(212, 175, 55, 0.08)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>🔑</span>
-                    <strong style={{ color: 'var(--accent-gold-light)', fontSize: '0.92rem' }}>
-                      Staff Admin Portal Login Credentials (/admin)
-                    </strong>
+                {/* Login credentials box */}
+                <div className="cred-box">
+                  <div className="cred-box-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Staff Admin Portal Login (/admin)
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: 1.45 }}>
-                    Give this team member an email and password so they can log into the <strong>Staff Admin (/admin)</strong> to manage portfolio projects and customer enquiries.
+                  <p className="cred-box-hint">
+                    Give this person an email and password to let them log into <strong>/admin</strong> as a staff member.
+                    {teamModal === 'edit' && ' Leave password blank to keep the existing one.'}
                   </p>
-
                   <div className="form-field">
-                    <label>Login Email Address</label>
-                    <input
-                      type="email"
-                      className="form-input"
-                      placeholder="e.g. alemu@selam.com"
-                      value={teamFormData.email}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, email: e.target.value })}
-                    />
+                    <label>Login Email</label>
+                    <input type="email" className="form-input" placeholder="e.g. alemu@selam.com"
+                      value={memberForm.email} onChange={e => setMemberForm({ ...memberForm, email: e.target.value })} />
                   </div>
-
                   <div className="form-field" style={{ marginBottom: 0 }}>
-                    <label>Login Password {teamFormData.email ? '(Min. 6 characters)' : '(Optional)'}</label>
-                    <div className="input-with-icon-wrapper">
-                      <input
-                        type={showMemberPassword ? 'text' : 'password'}
-                        className="form-input"
-                        placeholder="Set password for team member"
-                        minLength={teamFormData.email ? 6 : undefined}
-                        value={teamFormData.password}
-                        onChange={(e) => setTeamFormData({ ...teamFormData, password: e.target.value })}
-                      />
-                      <button
-                        type="button"
-                        className="input-toggle-btn"
-                        onClick={() => setShowMemberPassword(!showMemberPassword)}
-                      >
-                        {showMemberPassword ? 'Hide' : 'Show'}
+                    <label>{teamModal === 'edit' ? 'New Password (leave blank to keep current)' : 'Password (min. 6 characters)'}</label>
+                    <div className="input-wrap">
+                      <input type={showMemberPw ? 'text' : 'password'} className="form-input"
+                        placeholder={teamModal === 'edit' ? '••••••  (leave blank to keep)' : 'Set login password…'}
+                        value={memberForm.password} onChange={e => setMemberForm({ ...memberForm, password: e.target.value })} />
+                      <button type="button" className="input-toggle-btn" onClick={() => setShowMemberPw(!showMemberPw)}>
+                        {showMemberPw ? 'Hide' : 'Show'}
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setIsTeamModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-gold" disabled={formSubmitting}>
-                  {formSubmitting ? 'Creating Team Member...' : 'Create Team Member & Save'}
+              <div className="modal-foot">
+                <button type="button" className="btn-secondary" onClick={() => setTeamModal(null)}>Cancel</button>
+                <button type="submit" className="btn-accent" disabled={submitting}>
+                  {submitting ? 'Saving…' : teamModal === 'add' ? 'Create Member' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -1455,242 +702,43 @@ export default function SuperAdmin() {
         </div>
       )}
 
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {/* MODAL: EDIT TEAM MEMBER (UPDATE DETAILS & UPDATE/RESET PASSWORD) */}
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {editingMember && (
-        <div className="modal-overlay" onClick={() => setEditingMember(null)}>
-          <div
-            className="modal-card"
-            style={{ maxWidth: '640px', width: '92%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3 className="modal-title">Edit Team Member: {editingMember.name}</h3>
-              <button type="button" className="modal-close" onClick={() => setEditingMember(null)}>
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleUpdateTeamMember}>
-              <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
-                <div className="form-field">
-                  <label>Full Name *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    required
-                    value={editingMember.name}
-                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="form-field">
-                    <label>Position / Role</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editingMember.position}
-                      onChange={(e) => setEditingMember({ ...editingMember, position: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-field">
-                    <label>Department</label>
-                    <select
-                      className="form-input"
-                      value={editingMember.department}
-                      onChange={(e) => setEditingMember({ ...editingMember, department: e.target.value })}
-                    >
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="form-field">
-                    <label>Profession / Specialization</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editingMember.profession}
-                      onChange={(e) => setEditingMember({ ...editingMember, profession: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-field">
-                    <label>Years of Experience</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editingMember.yearsexperience}
-                      onChange={(e) => setEditingMember({ ...editingMember, yearsexperience: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
-                  <div className="form-field">
-                    <label>Photo URL</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editingMember.photo}
-                      onChange={(e) => setEditingMember({ ...editingMember, photo: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-field">
-                    <label>Display Sort Order</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={editingMember.order}
-                      onChange={(e) => setEditingMember({ ...editingMember, order: Number(e.target.value) })}
-                    />
-                  </div>
-                </div>
-
-                {/* ─── CREDENTIALS EDIT / RESET BOX ─────────────────── */}
-                <div
-                  style={{
-                    background: 'rgba(212, 175, 55, 0.06)',
-                    border: '1px solid rgba(212, 175, 55, 0.35)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    marginTop: '16px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>🔑</span>
-                    <strong style={{ color: 'var(--accent-gold-light)', fontSize: '0.92rem' }}>
-                      Staff Admin Portal Access (/admin)
-                    </strong>
-                  </div>
-
-                  <div className="form-field">
-                    <label>Login Email Address</label>
-                    <input
-                      type="email"
-                      className="form-input"
-                      placeholder="e.g. member@selam.com"
-                      value={editingMember.email}
-                      onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-field" style={{ marginBottom: 0 }}>
-                    <label>Reset / Change Password (Min. 6 chars)</label>
-                    <div className="input-with-icon-wrapper">
-                      <input
-                        type={showMemberPassword ? 'text' : 'password'}
-                        className="form-input"
-                        placeholder="Leave blank to keep existing password"
-                        minLength={6}
-                        value={editingMember.password}
-                        onChange={(e) => setEditingMember({ ...editingMember, password: e.target.value })}
-                      />
-                      <button
-                        type="button"
-                        className="input-toggle-btn"
-                        onClick={() => setShowMemberPassword(!showMemberPassword)}
-                      >
-                        {showMemberPassword ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
-                      Entering a new password here will immediately update their /admin login key.
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setEditingMember(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-gold" disabled={formSubmitting}>
-                  {formSubmitting ? 'Saving Changes...' : 'Save Member Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {/* MODAL: CREATE STANDALONE ADMIN ACCOUNT                            */}
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {isAccountModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAccountModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Provision Admin Account</h3>
-              <button type="button" className="modal-close" onClick={() => setIsAccountModalOpen(false)}>
-                &times;
-              </button>
+      {/* ── CREATE ACCOUNT MODAL ─────────────────────────── */}
+      {acctModal && (
+        <div className="modal-backdrop" onClick={() => setAcctModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <span className="modal-title">Create Admin Account</span>
+              <button className="modal-close" onClick={() => setAcctModal(false)}>×</button>
             </div>
             <form onSubmit={handleCreateAccount}>
               <div className="modal-body">
                 <div className="form-field">
-                  <label>Display Name / Username *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    required
-                    placeholder="e.g. daniel_engineer"
-                    value={newAccountUsername}
-                    onChange={(e) => setNewAccountUsername(e.target.value)}
-                  />
+                  <label>Username / Display Name *</label>
+                  <input type="text" className="form-input" required placeholder="e.g. daniel_engineer"
+                    value={acctForm.username} onChange={e => setAcctForm({ ...acctForm, username: e.target.value })} />
                 </div>
-
                 <div className="form-field">
-                  <label>Email Address (Login ID) *</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    required
-                    placeholder="e.g. daniel@selam.com"
-                    value={newAccountEmail}
-                    onChange={(e) => setNewAccountEmail(e.target.value)}
-                  />
+                  <label>Email Address *</label>
+                  <input type="email" className="form-input" required placeholder="e.g. daniel@selam.com"
+                    value={acctForm.email} onChange={e => setAcctForm({ ...acctForm, email: e.target.value })} />
                 </div>
-
                 <div className="form-field">
-                  <label>Password (Min. 6 characters) *</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    required
-                    minLength={6}
-                    placeholder="Enter secure password"
-                    value={newAccountPassword}
-                    onChange={(e) => setNewAccountPassword(e.target.value)}
-                  />
+                  <label>Password * (min. 6 characters)</label>
+                  <input type="password" className="form-input" required minLength={6} placeholder="Secure password"
+                    value={acctForm.password} onChange={e => setAcctForm({ ...acctForm, password: e.target.value })} />
                 </div>
-
                 <div className="form-field">
-                  <label>Clearance Level</label>
-                  <select
-                    className="form-input"
-                    value={newAccountRole}
-                    onChange={(e) => setNewAccountRole(e.target.value)}
-                  >
-                    <option value="admin">Team Member (Admin) — Staff Dashboard Access</option>
-                    <option value="superadmin">Super Admin (Owner) — Root Vault Authority</option>
+                  <label>Role</label>
+                  <select className="form-input" value={acctForm.role} onChange={e => setAcctForm({ ...acctForm, role: e.target.value })}>
+                    <option value="admin">Staff Admin — Standard access</option>
+                    <option value="superadmin">Super Admin — Full owner access</option>
                   </select>
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setIsAccountModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-gold" disabled={formSubmitting}>
-                  {formSubmitting ? 'Provisioning...' : 'Create Account'}
+              <div className="modal-foot">
+                <button type="button" className="btn-secondary" onClick={() => setAcctModal(false)}>Cancel</button>
+                <button type="submit" className="btn-accent" disabled={submitting}>
+                  {submitting ? 'Creating…' : 'Create Account'}
                 </button>
               </div>
             </form>
@@ -1698,42 +746,51 @@ export default function SuperAdmin() {
         </div>
       )}
 
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {/* CONFIRMATION DIALOG MODAL                                        */}
-      {/* ═════════════════════════════════════════════════════════════════ */}
-      {confirmDialog && (
-        <div className="modal-overlay" onClick={() => setConfirmDialog(null)}>
-          <div className="modal-card confirm-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="confirm-modal-body">
-              <div className="confirm-modal-icon">
+      {/* ── CONFIRM DIALOG ───────────────────────────────── */}
+      {confirm && (
+        <div className="modal-backdrop" onClick={() => setConfirm(null)}>
+          <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="confirm-body">
+              <div className="confirm-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                  <line x1="12" y1="9" x2="12" y2="13"></line>
-                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
               </div>
-              <h3 className="confirm-modal-title">{confirmDialog.title}</h3>
-              <p className="confirm-modal-text">{confirmDialog.message}</p>
+              <div className="confirm-title">{confirm.title}</div>
+              <p className="confirm-msg">{confirm.message}</p>
             </div>
-            <div className="confirm-modal-actions">
-              <button type="button" className="confirm-cancel-btn" onClick={() => setConfirmDialog(null)}>
-                Keep &amp; Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-danger-confirm"
-                onClick={() => {
-                  const action = confirmDialog.onConfirm;
-                  setConfirmDialog(null);
-                  if (action) action();
-                }}
-              >
-                {confirmDialog.confirmText || 'Confirm'}
+            <div className="confirm-foot">
+              <button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button>
+              <button className="btn-danger" onClick={() => { const fn = confirm.onConfirm; setConfirm(null); fn(); }}>
+                Confirm
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ToastBar({ toast, onClose }) {
+  return (
+    <div className="toast-wrap">
+      <div className={`toast ${toast.type}`}>
+        <div className="toast-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
+            {toast.type === 'success'
+              ? <polyline points="20 6 9 17 4 12"/>
+              : <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>
+            }
+          </svg>
+        </div>
+        <div className="toast-body">
+          <div className="toast-title">{toast.type === 'success' ? 'Success' : 'Error'}</div>
+          <div className="toast-msg">{toast.message}</div>
+        </div>
+        <button className="toast-close" onClick={onClose}>×</button>
+      </div>
     </div>
   );
 }
