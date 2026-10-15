@@ -6,7 +6,6 @@
 [![Database](https://img.shields.io/badge/Database-MongoDB%20%7C%20Mongoose-47A248.svg)](file:///c:/Users/shafqat%20Ali/Desktop/Project/selam/backend)
 [![License](https://img.shields.io/badge/License-Proprietary%20%2F%20Commercial-red.svg)](file:///c:/Users/shafqat%20Ali/Desktop/Project/selam)
 
----
 
 ## 📋 Executive Overview
 
