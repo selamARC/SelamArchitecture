@@ -199,10 +199,6 @@ Ensure the following tools are installed on your host system:
 
 When the backend starts for the first time, it automatically creates a default administrator account using the values configured in `backend/.env`.
 
-- **Admin Portal URL**: `http://localhost:3000/admin`
-- **Default Email**: `admin@selam.com`
-- **Default Password**: `admin123`
-
 > [!CAUTION]
 > **Production Security Mandatory Step**:
 > Before deploying to a live public server, update `ADMIN_PASSWORD` and `JWT_SECRET` in `backend/.env` with strong, cryptographically secure values. Once the database is created, admin passwords can also be updated directly in MongoDB or via a password reset script.
