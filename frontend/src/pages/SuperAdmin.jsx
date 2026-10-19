@@ -58,8 +58,10 @@ export default function SuperAdmin() {
   /* ── Admin Accounts ─────────────────────────────────────── */
   const [accounts,      setAccounts]      = useState([]);
   const [acctSearch,    setAcctSearch]    = useState('');
-  const [acctModal,     setAcctModal]     = useState(false);
+  const [acctModal,     setAcctModal]     = useState(null); // null | 'add' | 'edit'
+  const [editAcctId,    setEditAcctId]    = useState(null);
   const [acctForm,      setAcctForm]      = useState({ username: '', email: '', password: '', role: 'admin' });
+  const [showAcctPw,    setShowAcctPw]    = useState(false);
 
   /* ── Stats / Shared ─────────────────────────────────────── */
   const [stats,       setStats]       = useState({ counts: {} });
@@ -73,25 +75,64 @@ export default function SuperAdmin() {
     setTimeout(() => setToast(null), 3800);
   };
 
-  const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` });
+  const headers = () => {
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h.Authorization = `Bearer ${token}`;
+    return h;
+  };
   const safeJson = async (res) => { try { return await res.json(); } catch { return {}; } };
+
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem('selam_superadmin_token');
+    localStorage.removeItem('selam_superadmin_user');
+    setToken(null);
+    setUser(null);
+  };
 
   // ── Load all data ─────────────────────────────────────────
   const loadData = () => {
     if (!token) return;
     setRefreshing(true);
     Promise.all([
-      fetch(`${API_BASE}/api/team`)                         .then(r => safeJson(r)).then(d => Array.isArray(d) && setTeam(d)),
-      fetch(`${API_BASE}/api/auth/users`, { headers: headers() }).then(r => safeJson(r)).then(d => Array.isArray(d.users) && setAccounts(d.users)),
-      fetch(`${API_BASE}/api/stats`,      { headers: headers() }).then(r => safeJson(r)).then(d => d.counts && setStats(d)),
+      fetch(`${API_BASE}/api/team`).then(r => safeJson(r)).then(d => Array.isArray(d) && setTeam(d)),
+      fetch(`${API_BASE}/api/auth/users`, { headers: headers() }).then(async r => {
+        if (r.status === 401 || r.status === 403) {
+          handleLogout();
+          return null;
+        }
+        return safeJson(r);
+      }).then(d => d && Array.isArray(d.users) && setAccounts(d.users)),
+      fetch(`${API_BASE}/api/stats`, { headers: headers() }).then(async r => {
+        if (r.status === 401 || r.status === 403) {
+          handleLogout();
+          return null;
+        }
+        return safeJson(r);
+      }).then(d => d && d.counts && setStats(d)),
     ]).finally(() => setTimeout(() => setRefreshing(false), 400));
   };
 
   useEffect(() => {
     if (!token) return;
     fetch(`${API_BASE}/api/auth/me`, { headers: headers() })
-      .then(r => safeJson(r))
-      .then(d => { if (d?.user) { setUser(d.user); localStorage.setItem(USER_KEY, JSON.stringify(d.user)); } });
+      .then(async (res) => {
+        if (!res.ok) {
+          handleLogout();
+          showToast('Session expired. Please sign in again as Owner.', 'error');
+          return;
+        }
+        const d = await safeJson(res);
+        if (d?.user && d.user.role === 'superadmin') {
+          setUser(d.user);
+          localStorage.setItem(USER_KEY, JSON.stringify(d.user));
+        } else {
+          handleLogout();
+          showToast('Super Admin privileges required.', 'error');
+        }
+      })
+      .catch(() => {});
     loadData();
   }, [token]);
 
@@ -113,11 +154,6 @@ export default function SuperAdmin() {
       showToast('Welcome, Super Admin!');
     } catch (err) { setLoginErr(err.message); }
     finally      { setLogging(false); }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(USER_KEY);
-    setToken(null); setUser(null);
   };
 
   // ── Team Member CRUD ──────────────────────────────────────
@@ -146,6 +182,10 @@ export default function SuperAdmin() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      if (!token) {
+        handleLogout();
+        throw new Error('Please sign in as Owner (Super Admin) to continue.');
+      }
       const isEdit = teamModal === 'edit';
       const url    = isEdit ? `${API_BASE}/api/team/${editId}` : `${API_BASE}/api/team`;
       const res    = await fetch(url, {
@@ -153,6 +193,10 @@ export default function SuperAdmin() {
         headers: headers(),
         body: JSON.stringify(memberForm),
       });
+      if (res.status === 401 || res.status === 403) {
+        handleLogout();
+        throw new Error('Your session has expired. Please sign in again as Owner.');
+      }
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to save member.');
       showToast(data.message || (isEdit ? 'Member updated.' : 'Member created.'));
@@ -169,6 +213,11 @@ export default function SuperAdmin() {
       message: `Delete "${m.name}"?${hasLogin ? ' Their /admin login access will also be revoked.' : ''}`,
       onConfirm: async () => {
         const res = await fetch(`${API_BASE}/api/team/${m._id}`, { method: 'DELETE', headers: headers() });
+        if (res.status === 401 || res.status === 403) {
+          handleLogout();
+          showToast('Session expired. Please sign in again.', 'error');
+          return;
+        }
         const data = await safeJson(res);
         if (res.ok) { showToast(data.message || 'Member deleted.'); loadData(); }
         else showToast(data.error || 'Could not delete.', 'error');
@@ -177,17 +226,48 @@ export default function SuperAdmin() {
   };
 
   // ── Admin Account CRUD ────────────────────────────────────
-  const handleCreateAccount = async (e) => {
+  const openAddAccount = () => {
+    setAcctForm({ username: '', email: '', password: '', role: 'admin' });
+    setEditAcctId(null);
+    setShowAcctPw(false);
+    setAcctModal('add');
+  };
+
+  const openEditAccount = (u) => {
+    setAcctForm({
+      username: u.username || '',
+      email: u.email || '',
+      password: '',
+      role: u.role || 'admin',
+    });
+    setEditAcctId(u._id);
+    setShowAcctPw(false);
+    setAcctModal('edit');
+  };
+
+  const handleSaveAccount = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res  = await fetch(`${API_BASE}/api/auth/users`, {
-        method: 'POST', headers: headers(), body: JSON.stringify(acctForm),
+      if (!token) {
+        handleLogout();
+        throw new Error('Please sign in as Owner (Super Admin) to continue.');
+      }
+      const isEdit = acctModal === 'edit';
+      const url    = isEdit ? `${API_BASE}/api/auth/users/${editAcctId}` : `${API_BASE}/api/auth/users`;
+      const res    = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: headers(),
+        body: JSON.stringify(acctForm),
       });
+      if (res.status === 401 || res.status === 403) {
+        handleLogout();
+        throw new Error('Your session has expired. Please sign in again as Owner.');
+      }
       const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.error || 'Failed to create account.');
-      showToast(`Account for ${data.user?.email} created.`);
-      setAcctModal(false);
+      if (!res.ok) throw new Error(data.error || 'Failed to save account.');
+      showToast(data.message || (isEdit ? 'Account updated.' : `Account for ${data.user?.email} created.`));
+      setAcctModal(null);
       setAcctForm({ username: '', email: '', password: '', role: 'admin' });
       loadData();
     } catch (err) { showToast(err.message, 'error'); }
@@ -200,6 +280,11 @@ export default function SuperAdmin() {
       message: `Remove "${u.username || u.email}" from admin access? They will no longer be able to log into /admin.`,
       onConfirm: async () => {
         const res = await fetch(`${API_BASE}/api/auth/users/${u._id}`, { method: 'DELETE', headers: headers() });
+        if (res.status === 401 || res.status === 403) {
+          handleLogout();
+          showToast('Session expired. Please sign in again.', 'error');
+          return;
+        }
         const data = await safeJson(res);
         if (res.ok) { showToast(data.message || 'Account removed.'); loadData(); }
         else showToast(data.error || 'Could not remove.', 'error');
@@ -449,15 +534,6 @@ export default function SuperAdmin() {
           {/* ════════════════════════════════════════════════ */}
           {tab === 'team' && (
             <>
-              <div className="info-banner">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <span>
-                  Create, edit, or delete team members here. You can optionally give each member an <strong>email and password</strong> so they can log into the <strong>Staff Admin Portal (/admin)</strong>. Deleting a member also revokes their login access.
-                </span>
-              </div>
-
               <div className="panel">
                 <div className="panel-header">
                   <span className="panel-title">
@@ -564,7 +640,7 @@ export default function SuperAdmin() {
                   <div className="panel-actions">
                     <input className="search-input" placeholder="Search accounts…"
                       value={acctSearch} onChange={e => setAcctSearch(e.target.value)} />
-                    <button className="btn-accent" onClick={() => { setAcctForm({ username: '', email: '', password: '', role: 'admin' }); setAcctModal(true); }}>
+                    <button className="btn-accent" onClick={openAddAccount}>
                       + Create Account
                     </button>
                   </div>
@@ -601,10 +677,13 @@ export default function SuperAdmin() {
                               {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
                             </td>
                             <td>
-                              {isSelf
-                                ? <span className="badge badge-teal">Active (You)</span>
-                                : <button type="button" className="btn-icon danger" title="Revoke" onClick={() => deleteAccount(u)}>🗑</button>
-                              }
+                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                <button type="button" className="btn-icon edit" title="Edit Account" onClick={() => openEditAccount(u)}>✏</button>
+                                {isSelf
+                                  ? null
+                                  : <button type="button" className="btn-icon danger" title="Revoke Access" onClick={() => deleteAccount(u)}>🗑</button>
+                                }
+                              </div>
                             </td>
                           </tr>
                         );
@@ -717,15 +796,17 @@ export default function SuperAdmin() {
         </div>
       )}
 
-      {/* ── CREATE ACCOUNT MODAL ─────────────────────────── */}
-      {acctModal && (
-        <div className="modal-backdrop" onClick={() => setAcctModal(false)}>
+      {/* ── CREATE / EDIT ACCOUNT MODAL ─────────────────── */}
+      {(acctModal === 'add' || acctModal === 'edit') && (
+        <div className="modal-backdrop" onClick={() => setAcctModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-head">
-              <span className="modal-title">Create Admin Account</span>
-              <button className="modal-close" onClick={() => setAcctModal(false)}>×</button>
+              <span className="modal-title">
+                {acctModal === 'add' ? 'Create Admin Account' : `Edit Account: ${acctForm.username || acctForm.email}`}
+              </span>
+              <button className="modal-close" onClick={() => setAcctModal(null)}>×</button>
             </div>
-            <form onSubmit={handleCreateAccount}>
+            <form onSubmit={handleSaveAccount}>
               <div className="modal-body">
                 <div className="form-field">
                   <label>Username / Display Name *</label>
@@ -738,9 +819,19 @@ export default function SuperAdmin() {
                     value={acctForm.email} onChange={e => setAcctForm({ ...acctForm, email: e.target.value })} />
                 </div>
                 <div className="form-field">
-                  <label>Password * (min. 6 characters)</label>
-                  <input type="password" className="form-input" required minLength={6} placeholder="Secure password"
-                    value={acctForm.password} onChange={e => setAcctForm({ ...acctForm, password: e.target.value })} />
+                  <label>
+                    {acctModal === 'edit' ? 'New Password (leave blank to keep current)' : 'Password * (min. 6 characters)'}
+                  </label>
+                  <div className="input-wrap">
+                    <input type={showAcctPw ? 'text' : 'password'} className="form-input"
+                      required={acctModal === 'add'}
+                      minLength={acctForm.password ? 6 : undefined}
+                      placeholder={acctModal === 'edit' ? '••••••  (leave blank to keep)' : 'Secure password (min. 6 chars)'}
+                      value={acctForm.password} onChange={e => setAcctForm({ ...acctForm, password: e.target.value })} />
+                    <button type="button" className="input-toggle-btn" onClick={() => setShowAcctPw(!showAcctPw)}>
+                      {showAcctPw ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-field">
                   <label>Role</label>
@@ -751,9 +842,9 @@ export default function SuperAdmin() {
                 </div>
               </div>
               <div className="modal-foot">
-                <button type="button" className="btn-secondary" onClick={() => setAcctModal(false)}>Cancel</button>
+                <button type="button" className="btn-secondary" onClick={() => setAcctModal(null)}>Cancel</button>
                 <button type="submit" className="btn-accent" disabled={submitting}>
-                  {submitting ? 'Creating…' : 'Create Account'}
+                  {submitting ? 'Saving…' : acctModal === 'add' ? 'Create Account' : 'Save Changes'}
                 </button>
               </div>
             </form>

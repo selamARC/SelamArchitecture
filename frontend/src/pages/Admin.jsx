@@ -83,8 +83,20 @@ export default function Admin() {
   useEffect(() => {
     if (!token) return;
     fetch(`${API_BASE}/api/auth/me`, { headers: headers() })
-      .then(r => safeJson(r))
-      .then(d => { if (d?.user) { setUser(d.user); localStorage.setItem(USER_KEY, JSON.stringify(d.user)); } });
+      .then(async (res) => {
+        if (!res.ok) {
+          handleLogout();
+          return;
+        }
+        const d = await safeJson(res);
+        if (d?.user) {
+          setUser(d.user);
+          localStorage.setItem(USER_KEY, JSON.stringify(d.user));
+        } else {
+          handleLogout();
+        }
+      })
+      .catch(() => {});
     loadData();
   }, [token]);
 

@@ -29,6 +29,33 @@
  */
 
 require('dotenv').config();
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+} catch (_) {}
+
+const origLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  if (typeof hostname === 'string' && hostname.endsWith('.mongodb.net')) {
+    return dns.resolve4(hostname, (err, addresses) => {
+      if (err || !addresses || !addresses.length) {
+        return origLookup(hostname, options, callback);
+      }
+      if (options && options.all) {
+        return callback(null, addresses.map(a => ({ address: a, family: 4 })));
+      }
+      return callback(null, addresses[0], 4);
+    });
+  }
+  return origLookup(hostname, options, callback);
+};
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');

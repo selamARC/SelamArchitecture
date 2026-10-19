@@ -24,7 +24,7 @@ function ScrollToTop() {
 
 export default function App() {
   const location = useLocation();
-  const isDashboard = location.pathname.startsWith('/admin') || location.pathname.startsWith('/super-admin');
+  const isDashboard = location.pathname.startsWith('/admin') || location.pathname.startsWith('/super-admin') || location.pathname.startsWith('/superadmin');
 
   return (
     <>
@@ -48,6 +48,8 @@ export default function App() {
         <Route path="/admin.html" element={<Admin />} />
         <Route path="/super-admin" element={<SuperAdmin />} />
         <Route path="/super-admin.html" element={<SuperAdmin />} />
+        <Route path="/superadmin" element={<SuperAdmin />} />
+        <Route path="/superadmin.html" element={<SuperAdmin />} />
       </Routes>
 
       {!isDashboard && <Footer />}

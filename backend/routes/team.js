@@ -62,16 +62,18 @@ router.post('/', requireAuth, requireSuperAdmin, async (req, res) => {
       const existingUser = await User.findOne({ email: cleanEmail });
       if (existingUser) {
         if (cleanPassword) {
-          return res.status(400).json({
-            error: `An account with email "${cleanEmail}" already exists. Please choose a different email or leave password blank to link.`,
-          });
+          existingUser.password = cleanPassword;
+          await existingUser.save();
         }
         linkedUser = existingUser;
       } else if (cleanPassword) {
         // Generate a valid unique username
-        let baseUsername = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        if (!baseUsername || baseUsername === '_') {
-          baseUsername = cleanEmail.split('@')[0];
+        let baseUsername = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/^_+|_+$/g, '');
+        if (!baseUsername) {
+          baseUsername = cleanEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/^_+|_+$/g, '');
+        }
+        if (!baseUsername) {
+          baseUsername = 'staff';
         }
         let uniqueUsername = baseUsername;
         let suffix = 1;

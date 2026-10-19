@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
+const TeamMember = require('../models/TeamMember');
 const { requireAuth, requireSuperAdmin, JWT_SECRET } = require('../middleware/auth');
 
 /**
@@ -180,6 +181,78 @@ router.post('/users', requireAuth, requireSuperAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error('[auth/users] Create error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/auth/users/:id
+ * Super Admin only: Update admin account details (username, email, password, role)
+ */
+router.put('/users/:id', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const { email, password, username, role } = req.body;
+
+    const user = await User.findById(targetId);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    // Email change
+    if (email && email.trim().toLowerCase() !== user.email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const duplicate = await User.findOne({ email: cleanEmail, _id: { $ne: targetId } });
+      if (duplicate) {
+        return res.status(400).json({ error: `The email "${cleanEmail}" is already taken.` });
+      }
+      user.email = cleanEmail;
+      // Also update linked TeamMember doc if any
+      await TeamMember.updateMany({ user: targetId }, { email: cleanEmail });
+    }
+
+    // Username change
+    if (username && username.trim().toLowerCase() !== user.username) {
+      const cleanUsername = username.trim().toLowerCase();
+      const duplicate = await User.findOne({ username: cleanUsername, _id: { $ne: targetId } });
+      if (duplicate) {
+        return res.status(400).json({ error: `The username "${cleanUsername}" is already taken.` });
+      }
+      user.username = cleanUsername;
+    }
+
+    // Password change
+    if (password && password.trim()) {
+      const cleanPassword = password.trim();
+      if (cleanPassword.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+      }
+      user.password = cleanPassword; // Pre-save hook will hash it
+    }
+
+    // Role change
+    if (role && role !== user.role) {
+      if (req.user.id === targetId && role !== 'superadmin') {
+        return res.status(400).json({ error: 'You cannot revoke your own Super Admin access.' });
+      }
+      user.role = role === 'superadmin' ? 'superadmin' : 'admin';
+    }
+
+    await user.save();
+
+    return res.json({
+      result: 'success',
+      message: `Account for ${user.email} updated successfully.`,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error('[auth/users PUT] Error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 });

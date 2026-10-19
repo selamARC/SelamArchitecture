@@ -63,7 +63,7 @@ export default function Home() {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Fetch active jobs from MongoDB backend
     fetch(`${API_BASE}/api/jobs`)
@@ -73,7 +73,7 @@ export default function Home() {
           setJobs(rows);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const handleCardClick = () => {
