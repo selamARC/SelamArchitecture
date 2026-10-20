@@ -14,6 +14,18 @@ export default function Navbar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  // Prevent background scrolling when mobile menu is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
   useEffect(() => {
     setCalendarDates(getCalendarStrings());
     const current = document.documentElement.getAttribute('data-theme') || 'dark';

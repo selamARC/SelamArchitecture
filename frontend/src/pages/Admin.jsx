@@ -30,6 +30,18 @@ export default function Admin() {
 
   /* ── Navigation ─────────────────────────────────────────── */
   const [tab, setTab] = useState('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen]);
 
   /* ── Data ───────────────────────────────────────────────── */
   const [stats,       setStats]       = useState({ counts: {}, recentSubmissions: [] });
@@ -234,7 +246,9 @@ export default function Admin() {
 
         <div className="login-card">
           <div className="login-logo-wrap">
-            <img src="/assets/logos/logo.png" alt="Selam" className="login-logo"
+            <img
+              src={theme === 'light' ? '/assets/logos/light.png' : '/assets/logos/logo.png'}
+              alt="Selam" className="login-logo"
               onError={(e) => { e.currentTarget.src = '/logo.png'; }} />
             <div>
               <div className="login-brand">Selam Consulting</div>
@@ -303,14 +317,24 @@ export default function Admin() {
       {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
       {/* ── SIDEBAR ──────────────────────────────────────── */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
-          <img src="/assets/logos/logo.png" alt="Selam" className="sidebar-logo"
+          <img
+            src={theme === 'light' ? '/assets/logos/light.png' : '/assets/logos/logo.png'}
+            alt="Selam" className="sidebar-logo"
             onError={e => { e.currentTarget.src = '/logo.png'; }} />
           <div className="sidebar-brand-text">
             <div className="sidebar-brand-name">Selam Consulting</div>
             <div className="sidebar-brand-role">Staff Portal</div>
           </div>
+          <button
+            type="button"
+            className="sidebar-close-btn"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+          >
+            &times;
+          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -324,7 +348,7 @@ export default function Admin() {
           ].map(({ key, label, icon, count }) => (
             <button key={key} type="button"
               className={`nav-btn ${tab === key ? 'active' : ''}`}
-              onClick={() => { setTab(key); setSearch(''); }}>
+              onClick={() => { setTab(key); setSearch(''); setSidebarOpen(false); }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{icon}</svg>
               <span>{label}</span>
               {count !== null && <span className="nav-count">{count}</span>}
@@ -355,12 +379,34 @@ export default function Admin() {
         </div>
       </aside>
 
+      {/* Backdrop overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          className="admin-sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ── MAIN ─────────────────────────────────────────── */}
       <main className="admin-main">
         <header className="topbar">
-          <span className="topbar-title">{tabLabel[tab]}</span>
+          <div className="topbar-left">
+            <button
+              type="button"
+              className="admin-menu-toggle"
+              aria-label="Toggle navigation"
+              onClick={() => setSidebarOpen(prev => !prev)}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <span className="topbar-title">{tabLabel[tab]}</span>
+          </div>
           <div className="topbar-right">
-            <span className="status-dot"><span className="dot" />Connected</span>
             <AdminThemeToggle theme={theme} toggleTheme={toggleTheme} />
             <button className="btn-secondary" onClick={loadData} disabled={refreshing}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

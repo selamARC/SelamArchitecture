@@ -71,7 +71,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <strong>Head Office</strong>
-                    <p>Addis Ababa, Ethiopia (Branch office: Hawassa)</p>
+                    <p>Atota, W/Amanuel Road, Hawassa, Ethiopia (Branch office: Addis Ababa)</p>
                   </div>
                 </div>
 

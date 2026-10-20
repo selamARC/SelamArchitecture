@@ -95,7 +95,7 @@ export default function About() {
               </div>
               <div>
                 <span className="company-fact-label">LOCATIONS</span>
-                <strong className="company-fact-value">Addis Ababa &amp; Hawassa</strong>
+                <strong className="company-fact-value">Hawassa &amp; Addis Ababa</strong>
               </div>
             </div>
           </div>

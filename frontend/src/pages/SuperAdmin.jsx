@@ -45,6 +45,18 @@ export default function SuperAdmin() {
 
   /* ── Tabs ───────────────────────────────────────────────── */
   const [tab, setTab] = useState('team');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen]);
 
   /* ── Team Members ───────────────────────────────────────── */
   const [team,        setTeam]        = useState([]);
@@ -323,7 +335,9 @@ export default function SuperAdmin() {
 
         <div className="login-card">
           <div className="login-logo-wrap">
-            <img src="/assets/logos/logo.png" alt="Selam" className="login-logo"
+            <img
+              src={theme === 'light' ? '/assets/logos/light.png' : '/assets/logos/logo.png'}
+              alt="Selam" className="login-logo"
               onError={e => { e.currentTarget.src = '/logo.png'; }} />
             <div>
               <div className="login-brand">Selam Consulting</div>
@@ -405,20 +419,30 @@ export default function SuperAdmin() {
       {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
 
       {/* ── SIDEBAR ──────────────────────────────────────── */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
-          <img src="/assets/logos/logo.png" alt="Selam" className="sidebar-logo"
+          <img
+            src={theme === 'light' ? '/assets/logos/light.png' : '/assets/logos/logo.png'}
+            alt="Selam" className="sidebar-logo"
             onError={e => { e.currentTarget.src = '/logo.png'; }} />
           <div className="sidebar-brand-text">
             <div className="sidebar-brand-name">Selam Consulting</div>
             <div className="sidebar-brand-role">Owner Portal</div>
           </div>
+          <button
+            type="button"
+            className="sidebar-close-btn"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+          >
+            &times;
+          </button>
         </div>
 
         <nav className="sidebar-nav">
           <div className="sidebar-section">Management</div>
 
-          <button type="button" className={`nav-btn ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')}>
+          <button type="button" className={`nav-btn ${tab === 'team' ? 'active' : ''}`} onClick={() => { setTab('team'); setSidebarOpen(false); }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -427,7 +451,7 @@ export default function SuperAdmin() {
             <span className="nav-count">{team.length}</span>
           </button>
 
-          <button type="button" className={`nav-btn ${tab === 'accounts' ? 'active' : ''}`} onClick={() => setTab('accounts')}>
+          <button type="button" className={`nav-btn ${tab === 'accounts' ? 'active' : ''}`} onClick={() => { setTab('accounts'); setSidebarOpen(false); }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
@@ -437,7 +461,7 @@ export default function SuperAdmin() {
 
           <div className="sidebar-section" style={{ marginTop: 8 }}>Shortcuts</div>
 
-          <Link to="/admin" className="nav-btn" style={{ textDecoration: 'none' }}>
+          <Link to="/admin" className="nav-btn" style={{ textDecoration: 'none' }} onClick={() => setSidebarOpen(false)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
             </svg>
@@ -469,14 +493,36 @@ export default function SuperAdmin() {
         </div>
       </aside>
 
+      {/* Backdrop overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          className="admin-sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ── MAIN ─────────────────────────────────────────── */}
       <main className="admin-main">
         <header className="topbar">
-          <span className="topbar-title">
-            {tab === 'team' ? 'Team Members Management' : 'Admin Accounts'}
-          </span>
+          <div className="topbar-left">
+            <button
+              type="button"
+              className="admin-menu-toggle"
+              aria-label="Toggle navigation"
+              onClick={() => setSidebarOpen(prev => !prev)}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <span className="topbar-title">
+              {tab === 'team' ? 'Team Members Management' : 'Admin Accounts'}
+            </span>
+          </div>
           <div className="topbar-right">
-            <span className="status-dot"><span className="dot" />Connected</span>
             <AdminThemeToggle theme={theme} toggleTheme={toggleTheme} />
             <button className="btn-secondary" onClick={loadData} disabled={refreshing}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

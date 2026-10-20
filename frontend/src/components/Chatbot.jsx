@@ -15,7 +15,7 @@ const botKnowledge = [
   },
   {
     keywords: ['location', 'where', 'address', 'office', 'city', 'place', 'branch'],
-    response: "Our Head Office is in Addis Ababa, and our branch office is in Hawassa (Atota, W/Amanuel road, in front of Hayole School). We take on projects across Ethiopia."
+    response: "Our Head Office is in Hawassa (Atota, W/Amanuel road, in front of Hayole School), and our branch office is in Addis Ababa. We take on projects across Ethiopia."
   },
   {
     keywords: ['cat', 'grade', 'license', 'cat-1', 'cat 1', 'certification', 'qualified', 'registered', 'legal'],
@@ -39,7 +39,7 @@ const botKnowledge = [
   },
   {
     keywords: ['contact', 'call', 'phone', 'email', 'talk', 'number', 'appointment', 'meeting'],
-    response: "Direct Phone: +251 91 606 7138 / +251 96 104 7689<br>Email: selamconsultantplc12@gmail.com<br>Telegram: t.me/selamconsulting<br><br>You can also request a call directly through the contact form!"
+    response: "Direct Phone: +251 91 606 7138 / +251 96 104 7689<br>Email: selamconsultantplc12@gmail.com<br>Telegram: https://t.me/+4PNIiLBkpPpiMDQ0<br><br>You can also request a call directly through the contact form!"
   },
   {
     keywords: ['thanks', 'thank you', 'ok', 'okay', 'great', 'cool', 'perfect'],
@@ -50,7 +50,7 @@ const botKnowledge = [
 const chipQuickReplies = {
   services: "We offer Grade-I Architectural Design, Structural Engineering, MEP (Electrical &amp; Sanitary) Design, Landscape Design, and Contract Administration &amp; Site Supervision.",
   pricing: "Consultancy costs depend on your project size, discipline mix, and scope. Request a formal quotation using our quick contact form!",
-  location: "We're based in Addis Ababa (Head Office) with a branch office in Hawassa, supporting projects nationwide.",
+  location: "We're based in Hawassa (Head Office) with a branch office in Addis Ababa, supporting projects nationwide.",
   permits: "We deliver fully compliant design and documentation packages adhering to Ethiopian Building Codes for municipal permitting.",
   cat1: "CAT-I licensed consultancy, registered with the Addis Ababa City Administration, capable of executing high-rise, mixed-use, and major infrastructure developments.",
   contact: "Phone: +251 91 606 7138<br>Email: selamconsultantplc12@gmail.com"

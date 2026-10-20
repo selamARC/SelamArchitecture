@@ -42,7 +42,8 @@ const teamData = [
 
 const jobsData = [
   { title: "Junior Architect", department: "Architecture", location: "Hawassa, Ethiopia", type: "Full-time", description: "We're looking for a junior architect with 1-3 years of experience in residential and commercial design to join our Hawassa studio.", deadline: "31-Dec-2026", isActive: true, order: 1 },
-  { title: "Structural Engineer", department: "Structural Engineering", location: "Hawassa, Ethiopia", type: "Full-time", description: "Experienced structural engineer needed for high-rise and mixed-use project design and site supervision.", deadline: "31-Dec-2026", isActive: true, order: 2 }
+  { title: "Structural Engineer", department: "Structural Engineering", location: "Hawassa, Ethiopia", type: "Full-time", description: "Experienced structural engineer needed for high-rise and mixed-use project design and site supervision.", deadline: "31-Dec-2026", isActive: true, order: 2 },
+  { title: "Senior Architect & Project Lead", department: "Architecture & Urban Planning", location: "Hawassa / Addis Ababa, Ethiopia", type: "Full-time", description: "We are seeking an experienced Senior Architect to lead major commercial and mixed-use projects from conceptual design through construction supervision. The candidate will collaborate with multidisciplinary engineering teams, coordinate with clients, and champion architectural excellence.", deadline: "31-Dec-2026", isActive: true, order: 3 }
 ];
 
 async function seed() {

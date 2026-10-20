@@ -40,12 +40,42 @@ const defaultProjects = [
   }
 ];
 
+const defaultJobs = [
+  {
+    _id: "default-job-1",
+    title: "Junior Architect",
+    department: "Architecture",
+    location: "Hawassa, Ethiopia",
+    type: "Full-time",
+    description: "We're looking for a junior architect with 1-3 years of experience in residential and commercial design to join our Hawassa studio.",
+    deadline: "31-Dec-2026"
+  },
+  {
+    _id: "default-job-2",
+    title: "Structural Engineer",
+    department: "Structural Engineering",
+    location: "Hawassa, Ethiopia",
+    type: "Full-time",
+    description: "Experienced structural engineer needed for high-rise and mixed-use project design and site supervision.",
+    deadline: "31-Dec-2026"
+  },
+  {
+    _id: "default-job-3",
+    title: "Senior Architect & Project Lead",
+    department: "Architecture & Urban Planning",
+    location: "Hawassa / Addis Ababa, Ethiopia",
+    type: "Full-time",
+    description: "We are seeking an experienced Senior Architect to lead major commercial and mixed-use projects from conceptual design through construction supervision. The candidate will collaborate with multidisciplinary engineering teams, coordinate with clients, and champion architectural excellence.",
+    deadline: "31-Dec-2026"
+  }
+];
+
 export default function Home() {
   const [projectsList, setProjectsList] = useState(defaultProjects);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLitUp, setIsLitUp] = useState(false);
   const [imgOpacity, setImgOpacity] = useState(1);
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState(defaultJobs);
 
   useEffect(() => {
     // Fetch featured projects from MongoDB backend
@@ -287,7 +317,7 @@ export default function Home() {
             <p className="careers-subtitle">Open positions across our architecture and engineering practice.</p>
           </div>
 
-          <div className="jobs-grid" id="jobs-grid">
+          <div className={`jobs-grid ${jobs.length === 1 ? 'single-job' : ''}`} id="jobs-grid">
             {jobs.length > 0 ? (
               jobs.map(job => (
                 <div key={job._id || job.title} className="job-card">
